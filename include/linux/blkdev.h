@@ -148,12 +148,22 @@ enum mq_rq_state {
  * especially blk_mq_rq_ctx_init() to take care of the added fields.
  */
 struct request {
+#ifdef VENDOR_EDIT
+/*Huacai.Zhou@PSW.BSP.Kernel.Performance, 2018-04-28, add foreground task io opt*/
+	struct list_head fg_list;
+#endif /*VENDOR_EDIT*/
 	struct request_queue *q;
 	struct blk_mq_ctx *mq_ctx;
 
 	int cpu;
 	unsigned int cmd_flags;		/* op and common flags */
 	req_flags_t rq_flags;
+#ifdef VENDOR_EDIT
+/*Hank.liu@PSW.BSP Kernel IO Latency  2019-03-19,Add some info in each request*/
+	ktime_t block_io_start;  //save block io start ktime
+	ktime_t ufs_io_start; //save ufs io start ktime
+	u64 flash_io_latency; //save mmc host command latency
+#endif /*VENDOR_EDIT*/
 
 	int internal_tag;
 
@@ -436,6 +446,14 @@ struct request_queue {
 	 * Together with queue_head for cacheline sharing
 	 */
 	struct list_head	queue_head;
+#ifdef VENDOR_EDIT
+	/*Huacai.Zhou@PSW.BSP.Kernel.Performance, 2018-04-28, add foreground task io opt*/
+	struct list_head	fg_head;
+	int fg_count;
+	int both_count;
+	int fg_count_max;
+	int both_count_max;
+#endif /*VENDOR*/
 	struct request		*last_merge;
 	struct elevator_queue	*elevator;
 	int			nr_rqs[2];	/* # allocated [a]sync rqs */
@@ -567,7 +585,14 @@ struct request_queue {
 	struct blk_queue_tag	*queue_tags;
 
 	unsigned int		nr_sorted;
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+// jiheng.xie@PSW.Tech.BSP.Performance, 2019/03/11
+// Modify for ioqueue
+	unsigned int		in_flight[4];
+#else
 	unsigned int		in_flight[2];
+#endif /*VENDOR_EDIT*/
+
 
 	/*
 	 * Number of active block driver functions for which blk_drain_queue()
@@ -674,6 +699,11 @@ struct request_queue {
 
 #define BLK_MAX_WRITE_HINTS	5
 	u64			write_hints[BLK_MAX_WRITE_HINTS];
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_UFSTW)
+	/* Hank.liu@TECH.PLAT.Storage, 2019-10-31, add UFS+ hpb and tw driver*/
+	bool			turbo_write_dev;
+#endif
 };
 
 #define QUEUE_FLAG_QUEUED	0	/* uses generic tag queueing */
@@ -719,6 +749,47 @@ void blk_queue_flag_set(unsigned int flag, struct request_queue *q);
 void blk_queue_flag_clear(unsigned int flag, struct request_queue *q);
 bool blk_queue_flag_test_and_set(unsigned int flag, struct request_queue *q);
 bool blk_queue_flag_test_and_clear(unsigned int flag, struct request_queue *q);
+
+#ifdef VENDOR_EDIT
+/*Huacai.Zhou@PSW.BSP.Kernel.Performance, 2018-04-28, add foreground task io opt*/
+extern unsigned int sysctl_fg_io_opt;
+static inline void queue_throtl_add_request(struct request_queue *q,
+					    struct request *rq, bool front)
+{
+	struct list_head *head;
+	if (!sysctl_fg_io_opt)
+		return;
+	if (rq->cmd_flags & REQ_FG) {
+		head = &q->fg_head;
+		if (front)
+			list_add(&rq->fg_list, head);
+		else
+			list_add_tail(&rq->fg_list, head);
+	}
+}
+#endif /*VENDOR_EDIT*/
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+// jiheng.xie@PSW.Tech.BSP.Performance, 2019/03/11
+// Add for ioqueue
+static inline void ohm_ioqueue_add_inflight(struct request_queue *q,
+                                            struct request *rq)
+{
+       if (rq->cmd_flags & REQ_FG)
+               q->in_flight[BLK_RW_FG]++;
+       else
+               q->in_flight[BLK_RW_BG]++;
+}
+
+static inline void ohm_ioqueue_dec_inflight(struct request_queue *q,
+                                            struct request *rq)
+{
+       if (rq->cmd_flags & REQ_FG)
+               q->in_flight[BLK_RW_FG]--;
+       else
+               q->in_flight[BLK_RW_BG]--;
+}
+#endif /*VENDOR_EDIT*/
 
 #define blk_queue_tagged(q)	test_bit(QUEUE_FLAG_QUEUED, &(q)->queue_flags)
 #define blk_queue_stopped(q)	test_bit(QUEUE_FLAG_STOPPED, &(q)->queue_flags)

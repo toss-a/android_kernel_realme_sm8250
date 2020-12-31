@@ -260,6 +260,12 @@ config ZONE_DMA32
 config HAVE_GENERIC_GUP
 	def_bool y
 
+#ifdef VENDOR_EDIT
+#Ke.Li@ROM.Security, 2019/10/1, Add for kevent upload
+config OPPO_KEVENT_UPLOAD
+	def_bool y
+#endif/* VENDOR_EDIT */
+
 config SMP
 	def_bool y
 
@@ -521,22 +527,6 @@ config ARM64_ERRATUM_1463225
 	  Work around the erratum by triggering a dummy step exception
 	  when handling a system call from a task that is being stepped
 	  in a VHE configuration of the kernel.
-
-	  If unsure, say Y.
-
-config ARM64_ERRATUM_1542418
-	bool "Cortex-A77: The core might fetch a stale instuction, violating the ordering of instruction fetches"
-	default y
-	help
-	  This option adds a workaround for Arm Cortex-A77 erratum 1542418.
-
-	  On the affected Cortex-A77 cores (r0p0 and r1p0), software relying
-	  on the prefetch-speculation-protection instead of explicit
-	  synchronisation may fetch a stale instruction from a CPU-specific
-	  cache. This violates the ordering rules for instruction fetches.
-
-	  Work around the erratum by ensuring that 60 ASIDs are selected
-	  before any ASID is reused.
 
 	  If unsure, say Y.
 
@@ -1314,6 +1304,10 @@ config RELOCATABLE
 
 config RANDOMIZE_BASE
 	bool "Randomize the address of the kernel image"
+	#ifdef VENDOR_EDIT
+	#Wen.Luo@Bsp.Kernel.Stability, 2018/12/05, kmemleak version disable MEMORY_HOTPLUG
+	depends on !SLUB_DEBUG_ON || !DEBUG_KMEMLEAK || DEBUG_KMEMLEAK_DEFAULT_OFF
+	#endif
 	select ARM64_MODULE_PLTS if MODULES
 	select RELOCATABLE
 	help

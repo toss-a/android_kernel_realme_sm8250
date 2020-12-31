@@ -27,7 +27,12 @@
 /*
  * Timeout for stopping processes
  */
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.Power.Basic, 2019/12/10, sjc Modify for power debug */
+unsigned int __read_mostly freeze_timeout_msecs = 3 * MSEC_PER_SEC;
+#else
 unsigned int __read_mostly freeze_timeout_msecs = 20 * MSEC_PER_SEC;
+#endif
 
 static int try_to_freeze_tasks(bool user_only)
 {
@@ -75,6 +80,10 @@ static int try_to_freeze_tasks(bool user_only)
 			pm_get_active_wakeup_sources(suspend_abort,
 				MAX_SUSPEND_ABORT_LEN);
 			log_suspend_abort_reason(suspend_abort);
+#endif
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.Power.Basic, 2019/12/10, sjc Add for power debug */
+			pr_info("%s for debug\n", __func__);
 #endif
 			wakeup = true;
 			break;

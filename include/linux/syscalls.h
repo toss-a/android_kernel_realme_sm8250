@@ -1183,7 +1183,13 @@ static inline long ksys_rmdir(const char __user *pathname)
 }
 
 extern long do_mkdirat(int dfd, const char __user *pathname, umode_t mode);
-
+#ifdef VENDOR_EDIT
+/*YunRui.Chen@RM.Bsp.Group.Tp 2019/11/25 add for tp*/
+static inline long sys_mkdir(const char __user *pathname, umode_t mode)
+{
+	return do_mkdirat(AT_FDCWD, pathname, mode);
+}
+#endif
 static inline long ksys_mkdir(const char __user *pathname, umode_t mode)
 {
 	return do_mkdirat(AT_FDCWD, pathname, mode);

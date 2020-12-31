@@ -460,6 +460,7 @@ static inline void vma_rb_insert(struct vm_area_struct *vma,
 static void __vma_rb_erase(struct vm_area_struct *vma, struct mm_struct *mm)
 {
 	struct rb_root *root = &mm->mm_rb;
+
 	/*
 	 * Note rb_erase_augmented is a fairly large inline function,
 	 * so make sure we instantiate it only once with our desired
@@ -1014,6 +1015,19 @@ again:
 		}
 		else if (next)
 			vma_gap_update(next);
+#ifdef VNEDOR_EDIT
+		else {
+			/* Kui.Zhang@TEC.Kernel.Performance, 2019/03/13
+			 * reserve area top addr check
+			 */
+			if (BACKUP_ALLOC_FLAG(vma->vm_flags))
+				VM_WARN_ON(mm->reserve_highest_vm_end !=
+						vm_end_gap(vma));
+			else
+				VM_WARN_ON(mm->highest_vm_end !=
+						vm_end_gap(vma));
+		}
+#else
 		else {
 			/*
 			 * If remove_next == 2 we obviously can't
@@ -1036,6 +1050,7 @@ again:
 			 */
 			VM_WARN_ON(mm->highest_vm_end != vm_end_gap(vma));
 		}
+#endif
 	}
 	if (insert && file)
 		uprobe_mmap(insert);

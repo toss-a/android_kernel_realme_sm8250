@@ -11,6 +11,10 @@
 #include <linux/platform_device.h>
 #include <linux/mailbox_controller.h>
 #include <dt-bindings/soc/qcom,ipcc.h>
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.Power.Basic 2018/06/14 add formodem irq,case03529649
+#include <linux/string.h>
+#endif /*VENDOR_EDIT*/
 
 /* IPCC Register offsets */
 #define IPCC_REG_SEND_ID		0x0C
@@ -25,6 +29,25 @@
 #define IPCC_CLIENT_ID_SHIFT		16
 
 #define IPCC_NO_PENDING_IRQ		(~(u32)0)
+
+
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.Power.Basic 2018/06/14 add formodem irq, ,case03529649
+static char WLAN_DATA_IRQ_NAME_IPCC[]=				"WLAN";					//eg:WLAN_CE_0 ~WLAN_CE_11
+static char GLINK_NATIVE_ADSP_IRQ_NAME_IPCC[]=		"glink-native-adsp";	//eg:glink-native-adsp
+static char GLINK_NATIVE_CDSP_IRQ_NAME_IPCC[]=		"glink-native-cdsp";	//eg:glink-native-cdsp
+static char GLINK_NATIVE_SLPI_IRQ_NAME_IPCC[]=		"glink-native-slpi";	//eg:glink-native-slpi
+static char ADSP_IRQ_NAME_IPCC[]=					"adsp";					//eg:adsp
+static char CDSP_IRQ_NAME_IPCC[]=					"cdsp";					//eg:cdsp
+static char SLPI_IRQ_NAME_IPCC[]=					"spli";					//eg:spli
+
+extern u64 wakeup_source_count_modem;
+extern u64 wakeup_source_count_adsp;
+extern u64 wakeup_source_count_cdsp;
+extern u64 wakeup_source_count_slpi;
+extern u64 wakeup_source_count_wifi ;
+extern u64 wakeup_source_count_glink ;
+#endif /*VENDOR_EDIT*/
 
 /**
  * struct ipcc_protocol_data - Per-protocol data
@@ -89,12 +112,10 @@ static irqreturn_t qcom_ipcc_irq_fn(int irq, void *data)
 			break;
 
 		virq = irq_find_mapping(proto_data->irq_domain, packed_id);
-
 		dev_dbg(proto_data->dev,
 			"IRQ for client_id: %u; signal_id: %u; virq: %d\n",
 			qcom_ipcc_get_client_id(packed_id),
 			qcom_ipcc_get_signal_id(packed_id), virq);
-
 		writel_no_log(packed_id,
 				proto_data->base + IPCC_REG_RECV_SIGNAL_CLEAR);
 
@@ -334,6 +355,31 @@ static void msm_ipcc_resume(void)
 		name = desc->action->name;
 
 	pr_warn("%s: %d triggered %s\n", __func__, virq, name);
+	
+#ifdef VENDOR_EDIT
+//Nanwei.Deng@BSP.Power.Basic, 2018/04/28, add for analysis power coumption.
+	wakeup_source_count_glink++;
+
+	if(strncmp(name, WLAN_DATA_IRQ_NAME_IPCC, sizeof(WLAN_DATA_IRQ_NAME_IPCC)-1) == 0)	
+	{				
+		wakeup_source_count_wifi++; 		
+	}
+	else if((strncmp(name, ADSP_IRQ_NAME_IPCC, sizeof(ADSP_IRQ_NAME_IPCC)-1) == 0)
+		 || (strncmp(name, GLINK_NATIVE_ADSP_IRQ_NAME_IPCC, sizeof(GLINK_NATIVE_ADSP_IRQ_NAME_IPCC)-1) == 0)) 		
+	{				
+		wakeup_source_count_adsp++; 		
+	}			
+	else if((strncmp(name, CDSP_IRQ_NAME_IPCC, sizeof(CDSP_IRQ_NAME_IPCC)-1) == 0)	
+		 || (strncmp(name, GLINK_NATIVE_CDSP_IRQ_NAME_IPCC, sizeof(GLINK_NATIVE_CDSP_IRQ_NAME_IPCC)-1) == 0)) 
+	{				
+		wakeup_source_count_cdsp++; 		
+	}
+	else if((strncmp(name, SLPI_IRQ_NAME_IPCC, sizeof(SLPI_IRQ_NAME_IPCC)-1) == 0)	
+		 || (strncmp(name, GLINK_NATIVE_SLPI_IRQ_NAME_IPCC, sizeof(GLINK_NATIVE_SLPI_IRQ_NAME_IPCC)-1) == 0)) 
+	{				
+		wakeup_source_count_slpi++; 		
+	}
+#endif  /* VENDOR_EDIT */
 }
 #else
 #define msm_ipcc_suspend NULL

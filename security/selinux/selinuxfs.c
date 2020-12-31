@@ -41,6 +41,11 @@
 #include "security.h"
 #include "objsec.h"
 #include "conditional.h"
+#ifdef VENDOR_EDIT
+//Jiemin.Zhu@PSW.Android.SELinux, 2017/01/13, Add for disable selinux denied in MP version
+#include "proc.h"
+#endif /* VENDOR_EDIT */
+
 
 enum sel_inos {
 	SEL_ROOT_INO = 2,
@@ -2062,6 +2067,12 @@ static int __init init_sel_fs(void)
 		err = PTR_ERR(selinux_null.dentry);
 		selinux_null.dentry = NULL;
 	}
+
+
+#ifdef VENDOR_EDIT
+//Jiemin.Zhu@PSW.Android.SELinux, 2017/01/13, Add for disable selinux denied in MP version
+	init_denied_proc();
+#endif /* VENDOR_EDIT */
 
 	return err;
 }

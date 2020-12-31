@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/completion.h>
@@ -21,6 +21,14 @@
 #include <linux/usb/typec.h>
 #include <linux/usb/usbpd.h>
 #include "usbpd.h"
+
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@PSW.BSP.CHG.Basic, 2019/02/28, used for usb3 gen test */
+/* To start USB stack for USB3.1 compliance testing */
+static bool usb_compliance_mode;
+module_param(usb_compliance_mode, bool, 0644);
+MODULE_PARM_DESC(usb_compliance_mode, "USB3.1 compliance testing");
+#endif
 
 enum usbpd_state {
 	PE_UNKNOWN,
@@ -539,7 +547,6 @@ static inline void start_usb_host(struct usbpd *pd, bool ss)
 {
 	enum plug_orientation cc = usbpd_get_plug_orientation(pd);
 	union extcon_property_value val;
-	int ret = 0;
 
 	val.intval = (cc == ORIENTATION_CC2);
 	extcon_set_property(pd->extcon, EXTCON_USB_HOST,
@@ -550,13 +557,6 @@ static inline void start_usb_host(struct usbpd *pd, bool ss)
 			EXTCON_PROP_USB_SS, val);
 
 	extcon_set_state_sync(pd->extcon, EXTCON_USB_HOST, 1);
-
-	/* blocks until USB host is completely started */
-	ret = extcon_blocking_sync(pd->extcon, EXTCON_USB_HOST, 1);
-	if (ret) {
-		usbpd_err(&pd->dev, "err(%d) starting host", ret);
-		return;
-	}
 }
 
 static inline void stop_usb_peripheral(struct usbpd *pd)
@@ -859,6 +859,11 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 	return 0;
 }
 
+#ifdef VENDOR_EDIT
+/* Yichun.Chen  PSW.BSP.CHG  2019-08-19  for c to c */
+extern void opchg_set_pd_sdp(bool pd_sdp);
+#endif
+
 static int pd_eval_src_caps(struct usbpd *pd)
 {
 	int i;
@@ -896,7 +901,14 @@ static int pd_eval_src_caps(struct usbpd *pd)
 			POWER_SUPPLY_PD_ACTIVE;
 	power_supply_set_property(pd->usb_psy,
 			POWER_SUPPLY_PROP_PD_ACTIVE, &val);
-
+#ifdef VENDOR_EDIT
+/* Yichun.Chen  PSW.BSP.CHG  2019-08-19  for c to c */
+	if (pd->peer_usb_comm && pd->current_dr == DR_UFP && !pd->pd_connected) {
+			printk("set oppochg_pd_sdp = true\n");
+            opchg_set_pd_sdp(true);
+			//oppochg_pd_sdp = true;
+	}
+#endif
 	/* First time connecting to a PD source and it supports USB data */
 	if (pd->peer_usb_comm && pd->current_dr == DR_UFP && !pd->pd_connected)
 		start_usb_peripheral(pd);
@@ -1939,10 +1951,15 @@ static void vconn_swap(struct usbpd *pd)
 
 		pd->vconn_enabled = true;
 
+#ifndef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2020/02/13,  add for  pd+vooc adapter compatibility */
+		//pd_phy_update_frame_filter(FRAME_FILTER_EN_SOP |
+		//			   FRAME_FILTER_EN_SOPI |
+		//			   FRAME_FILTER_EN_HARD_RESET);
+#else
 		pd_phy_update_frame_filter(FRAME_FILTER_EN_SOP |
-					   FRAME_FILTER_EN_SOPI |
 					   FRAME_FILTER_EN_HARD_RESET);
-
+#endif
 		/*
 		 * Small delay to ensure Vconn has ramped up. This is well
 		 * below tVCONNSourceOn (100ms) so we still send PS_RDY within
@@ -2109,8 +2126,11 @@ static int usbpd_startup_common(struct usbpd *pd,
 		phy_params->data_role = pd->current_dr;
 		phy_params->power_role = pd->current_pr;
 
-		if (pd->vconn_enabled)
-			phy_params->frame_filter_val |= FRAME_FILTER_EN_SOPI;
+#ifndef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2020/02/13,  add for pd+vooc adapter compatibility */
+		//if (pd->vconn_enabled)
+		//	phy_params->frame_filter_val |= FRAME_FILTER_EN_SOPI;
+#endif
 
 		ret = pd_phy_open(phy_params);
 		if (ret) {
@@ -3734,7 +3754,18 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 					ret);
 			return ret;
 		}
-
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/02/28,   used for usb3 gen test */
+		if (val.intval == POWER_SUPPLY_TYPE_USB ||
+			val.intval == POWER_SUPPLY_TYPE_USB_CDP ||
+			val.intval == POWER_SUPPLY_TYPE_USB_FLOAT ||
+			usb_compliance_mode) {
+			usbpd_info(&pd->dev, "typec mode:%d type:%d\n",
+			typec_mode, val.intval);
+			pd->typec_mode = typec_mode;
+			queue_work(pd->wq, &pd->start_periph_work);
+		}
+#else
 		if (val.intval == POWER_SUPPLY_TYPE_USB ||
 			val.intval == POWER_SUPPLY_TYPE_USB_CDP ||
 			val.intval == POWER_SUPPLY_TYPE_USB_FLOAT) {
@@ -3743,9 +3774,17 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 			pd->typec_mode = typec_mode;
 			queue_work(pd->wq, &pd->start_periph_work);
 		}
-
+#endif
 		return 0;
 	}
+
+#ifdef VENDOR_EDIT
+/* tongfeng.Huang@BSP.CHG.Basic, 2019/02/28,   used for usb3 gen test */
+	if (usb_compliance_mode) {
+		usbpd_err(&pd->dev, "start usb peripheral for testing");
+		///start_usb_peripheral(pd);
+	}
+#endif
 
 	ret = power_supply_get_property(pd->usb_psy,
 			POWER_SUPPLY_PROP_PRESENT, &val);
@@ -4497,6 +4536,10 @@ static ssize_t get_battery_status_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "0x%08x\n", pd->battery_sts_dobj);
 }
 static DEVICE_ATTR_RW(get_battery_status);
+#ifdef VENDOR_EDIT
+/* Hang.Zhao@PSW.BSP.CHG.Basic, 2019/10/10, Add for pd charging */
+struct usbpd *pd_lobal;
+#endif
 
 static struct attribute *usbpd_attrs[] = {
 	&dev_attr_contract.attr,
@@ -4598,6 +4641,82 @@ static void usbpd_release(struct device *dev)
 
 	kfree(pd);
 }
+#ifdef VENDOR_EDIT
+/* Hang.Zhao@PSW.BSP.CHG.Basic, 2019/10/10, Add for pd charging */
+int oppo_pdo_select(int vbus_mv, int ibus_ma)
+{
+	int i = 0;
+	int rc = 0;
+	u32 pdo = 0;
+	struct usbpd *pd = pd_lobal;
+
+	for (i = 0; i < ARRAY_SIZE(pd->received_pdos); i++) {
+		pdo = pd->received_pdos[i];
+		if (vbus_mv == PD_SRC_PDO_FIXED_VOLTAGE(pdo) * 50 || pdo == 0)
+			break;
+	}
+
+	mutex_lock(&pd->swap_lock);
+
+	/* Only allowed if we are already in explicit sink contract */
+	if (pd->current_state != PE_SNK_READY || !is_sink_tx_ok(pd)) {
+		printk(KERN_ERR "%s: cannot select new pdo yet\n", __func__);
+		rc = -EBUSY;
+		goto out;
+	}
+
+	if (i > 7) {
+		printk(KERN_ERR "%s: inval pdo[0x%x]\n", __func__, pdo);
+		rc = -EINVAL;
+		goto out;
+	}
+
+	if (vbus_mv != PD_SRC_PDO_FIXED_VOLTAGE(pdo) * 50) {
+		if (i > 0) {
+			printk(KERN_ERR "%s: can not find vbus_mv[%d], the last pdos[%d]=[%d]\n", __func__,
+				vbus_mv, i -1, PD_SRC_PDO_FIXED_VOLTAGE(pd->received_pdos[i - 1]) * 50);
+		} else {
+			printk(KERN_ERR "%s: can not find vbus_mv[%d], pdos0=[%d]\n", __func__,
+				vbus_mv, PD_SRC_PDO_FIXED_VOLTAGE(pd->received_pdos[i]) * 50);
+		}
+		rc = -EINVAL;
+		goto out;
+	}
+
+	rc = pd_select_pdo(pd, i + 1, vbus_mv * 1000, ibus_ma * 1000);
+	if (rc) {
+		printk(KERN_ERR "%s: pd_select_pdo fail, rc=%d\n", __func__, rc);
+		goto out;
+	}
+
+	reinit_completion(&pd->is_ready);
+	pd->send_request = true;
+	kick_sm(pd, 0);
+
+	/* wait for operation to complete */
+	if (!wait_for_completion_timeout(&pd->is_ready, msecs_to_jiffies(1000))) {
+		printk(KERN_ERR "%s: pdo[%d], vbus_mv[%d], ibus_ma[%d] request timed out\n",
+				__func__, i, vbus_mv, ibus_ma);
+		rc = -ETIMEDOUT;
+		goto out;
+	}
+
+	/* determine if request was accepted/rejected */
+	if (pd->selected_pdo != pd->requested_pdo ||
+			pd->current_voltage != pd->requested_voltage) {
+		printk(KERN_ERR "%s: request rejected\n", __func__);
+		rc = -EINVAL;
+	}
+	printk(KERN_ERR "%s: pdo[%d], vbus_mv[%d], ibus_ma[%d]\n",
+				__func__, i, vbus_mv, ibus_ma);
+
+out:
+	pd->send_request = false;
+	mutex_unlock(&pd->swap_lock);
+	return rc;
+}
+EXPORT_SYMBOL(oppo_pdo_select);
+#endif /*VENDOR_EDIT*/
 
 static int num_pd_instances;
 
@@ -4782,6 +4901,11 @@ struct usbpd *usbpd_create(struct device *parent)
 
 	/* force read initial power_supply values */
 	psy_changed(&pd->psy_nb, PSY_EVENT_PROP_CHANGED, pd->usb_psy);
+
+#ifdef VENDOR_EDIT
+/* Hang.Zhao@PSW.BSP.CHG.Basic, 2019/10/10, Add for pd charging */
+	pd_lobal = pd;
+#endif
 
 	return pd;
 

@@ -71,6 +71,18 @@ obj-$(CONFIG_TEST_IRQ_REQUESTER) += irq_requester.o
 obj-$(CONFIG_OKL4_USER_VIPC)    += okl4-vipc.o
 obj-$(CONFIG_OKL4_GUEST)        += okl4-panic.o
 obj-$(CONFIG_OKL4_LINK_SHBUF)    += okl4-link-shbuf.o
+
+obj-$(CONFIG_OPPO_RF_CABLE_MONITOR)	+= oppo_rf_cable_monitor.o
+#ifdef VENDOR_EDIT
+# Mengmeng.Wang@SRC.System, 2018/08/28, Add for oiface
+obj-y				+= schedx.o
+#endif
+#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2018/10/25 for vib aw8697				+= lis3lv02d/
+obj-$(CONFIG_AW8697_HAPTIC)		+= aw8697_haptic/
+#endif
+# ifdef VENDOR_EDIT
+#Qicai.Gu@PSW.BSP.TP, 2016/06/22, Add for support press sensor
+obj-$(CONFIG_CS_F61_NDT) 	+= cs_press/
+# endif /* VENDOR_EDIT */
 obj-$(CONFIG_WIGIG_SENSING_SPI)	+= wigig_sensing.o
-obj-$(CONFIG_QTI_XR_SMRTVWR_MISC) += qxr-stdalonevwr.o
 

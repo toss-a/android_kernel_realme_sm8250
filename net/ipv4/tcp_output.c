@@ -45,8 +45,15 @@
 
 #include <trace/events/tcp.h>
 
+
 static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			   int push_one, gfp_t gfp);
+
+//#ifdef VENDOR_EDIT
+//liu.wei@TECH.CN.KERNEL, 2019/12/05,
+//Add code for push detect function
+extern void oppo_app_monitor_update_app_info(struct sock *sk, const struct sk_buff *skb, int send, int retrans);
+//#endif /* VENDOR_EDIT */
 
 /* Account for new data that has been sent to the network. */
 static void tcp_event_new_data_sent(struct sock *sk, struct sk_buff *skb)
@@ -1140,6 +1147,13 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 			       sizeof(struct inet6_skb_parm)));
 
 	err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl);
+	//#ifdef VENDOR_EDIT
+	//liu.wei@TECH.CN.KERNEL, 2019/12/05,
+	//Add code for push detect function
+	if(!err){
+		oppo_app_monitor_update_app_info(sk, skb, 1, 0);
+	}
+	//#endif /* VENDOR_EDIT */
 
 	if (unlikely(err > 0)) {
 		tcp_enter_cwr(sk);
@@ -2917,6 +2931,11 @@ int __tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb, int segs)
 
 	if (likely(!err)) {
 		TCP_SKB_CB(skb)->sacked |= TCPCB_EVER_RETRANS;
+		//#ifdef VENDOR_EDIT
+		//liu.wei@TECH.CN.KERNEL, 2019/12/05,
+		//Add code for push detect function
+		oppo_app_monitor_update_app_info(sk, skb, 1, 1);
+		//#endif /* VENDOR_EDIT */
 		trace_tcp_retransmit_skb(sk, skb);
 	} else if (err != -EBUSY) {
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPRETRANSFAIL);

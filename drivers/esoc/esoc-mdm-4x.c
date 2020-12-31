@@ -9,6 +9,12 @@
 #include <linux/sched/clock.h>
 #include <soc/qcom/sysmon.h>
 #include "esoc-mdm.h"
+#include "soc/oppo/boot_mode.h"
+
+#ifdef VENDOR_EDIT
+/*xing.xiong@BSP.Kernel.Driver, 2019/10/29, Add for 5G modem dump*/
+extern bool delay_panic;
+#endif
 
 enum gpio_update_config {
 	GPIO_UPDATE_BOOTING_CONFIG = 1,
@@ -363,9 +369,13 @@ static void mdm_status_fn(struct work_struct *work)
 	mdm_update_gpio_configs(mdm, GPIO_UPDATE_RUNNING_CONFIG);
 }
 
+
+bool modem_force_rst = false;
+
 static void mdm_get_restart_reason(struct work_struct *work)
 {
 	int ret, ntries = 0;
+
 	char sfr_buf[RD_BUF_SIZE];
 	struct mdm_ctrl *mdm =
 		container_of(work, struct mdm_ctrl, restart_reason_work);
@@ -387,6 +397,17 @@ static void mdm_get_restart_reason(struct work_struct *work)
 						__func__, ret);
 	}
 	mdm->get_restart_reason = false;
+
+#ifdef VENDOR_EDIT
+/*xing.xiong@BSP.Kernel.Driver, 2019/10/29, Add for 5G modem dump*/
+	if (delay_panic) {
+		snprintf(sfr_buf + strlen(sfr_buf),  RD_BUF_SIZE - strlen(sfr_buf), " :SDX5x esoc0 modem crash");
+		dev_err(dev, "SDX5x trigger dump after 5s !\n");
+		msleep(5000);
+		mdm_power_down(mdm);
+		panic(sfr_buf);
+	}
+#endif
 }
 
 void mdm_wait_for_status_low(struct mdm_ctrl *mdm, bool atomic)
@@ -1219,6 +1240,11 @@ static struct platform_driver mdm_driver = {
 
 static int __init mdm_register(void)
 {
+	if (qpnp_is_power_off_charging() &&
+		(get_boot_mode() != MSM_BOOT_MODE__WLAN) &&
+		(get_boot_mode() != MSM_BOOT_MODE__RF))
+		return 0;
+
 	return platform_driver_register(&mdm_driver);
 }
 module_init(mdm_register);

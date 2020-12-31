@@ -31,3 +31,12 @@ obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
 obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 
 obj-$(CONFIG_RMI4_CORE)		+= rmi4/
+#ifdef VENDOR_EDIT
+#Ran.Chen@BSP.Fingerprint.Basic, 2018/04/25, Add for FPC driver
+#Bangxiong.Wu@BSP.Fingerprint.Basic, 2019/10/30, Add for qssi build system.img
+#Dongnan.Wu@BSP.Fingerprint.Secure, 2019/11/08, Add for oppo secure common
+ifneq ($(TARGET_PRODUCT), qssi)
+obj-$(CONFIG_OPPO_FINGERPRINT)  += oppo_fp_drivers/
+obj-$(CONFIG_OPPO_FINGERPRINT)  += oppo_secure_common/
+endif
+#endif

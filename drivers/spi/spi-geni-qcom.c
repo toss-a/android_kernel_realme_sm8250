@@ -21,7 +21,14 @@
 #include <linux/pinctrl/consumer.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
+
+#ifdef VENDOR_EDIT
+// Bin.Xu@BSP.Kernel.Stability, 2019/12/27, qualcomm suggestion for bug 2719106
+#define SPI_XFER_TIMEOUT_MS	(2500)
+#else
 #define SPI_XFER_TIMEOUT_MS	(250)
+#endif  /* VENDOR_EDIT */
+
 #define SPI_AUTO_SUSPEND_DELAY	(250)
 /* SPI SE specific registers */
 #define SE_SPI_CPHA		(0x224)

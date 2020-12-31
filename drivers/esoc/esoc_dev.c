@@ -9,6 +9,7 @@
 #include <linux/wait.h>
 #include <linux/esoc_client.h>
 #include "esoc.h"
+#include "soc/oppo/boot_mode.h"
 
 /**
  * struct esoc_udev: Userspace char interface
@@ -461,6 +462,11 @@ static struct notifier_block esoc_dev_notifier = {
 int __init esoc_dev_init(void)
 {
 	int ret = 0;
+
+	if (qpnp_is_power_off_charging() &&
+		(get_boot_mode() != MSM_BOOT_MODE__WLAN) &&
+		(get_boot_mode() != MSM_BOOT_MODE__RF))
+		return 0;
 
 	esoc_class = class_create(THIS_MODULE, "esoc-dev");
 	if (IS_ERR_OR_NULL(esoc_class)) {

@@ -220,6 +220,14 @@ config CPU_FREQ_GOV_SCHEDUTIL
 
 	  If in doubt, say N.
 
+#ifdef VENDOR_EDIT
+config SCHEDUTIL_USE_TL
+	bool "use target loads in schedutil governor"
+	depends on CPU_FREQ_GOV_SCHEDUTIL
+	help
+	  Add target_loads sysfs attr in cpufreq schedutil governor.
+#endif
+
 comment "CPU frequency scaling drivers"
 
 config CPUFREQ_DT

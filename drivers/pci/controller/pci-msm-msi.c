@@ -387,6 +387,13 @@ int msm_msi_init(struct device *dev)
 	for (i = 0; i < msi->nr_irqs; i++) {
 		unsigned int irq = irq_of_parse_and_map(msi->of_node, i);
 
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.Power.Basic, 2019/12/10, sjc Add for PCIE irq power debug */
+#ifdef CONFIG_MHI_DEBUG
+		struct irq_desc *desc;
+#endif
+#endif /*VENDOR_EDIT*/
+
 		if (!irq) {
 			dev_err(msi->dev,
 				"MSI: failed to parse/map interrupt\n");
@@ -397,6 +404,14 @@ int msm_msi_init(struct device *dev)
 		msi->irqs[i].hwirq = irq;
 		irq_set_chained_handler_and_data(msi->irqs[i].hwirq,
 						msm_msi_handler, msi);
+
+#ifdef VENDOR_EDIT
+/* Jianchao.Shi@PSW.BSP.Power.Basic, 2019/12/10, sjc Add for PCIE irq power debug */
+#ifdef CONFIG_MHI_DEBUG
+		desc = irq_to_desc(irq);
+		desc->action->name = "qcommsi";
+#endif
+#endif /*VENDOR_EDIT*/
 	}
 
 	return 0;

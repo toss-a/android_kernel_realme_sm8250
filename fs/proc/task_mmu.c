@@ -850,6 +850,24 @@ static int show_smap(struct seq_file *m, void *v)
 
 	smap_gather_stats(vma, &mss);
 
+	#ifdef VENDOR_EDIT //yixue.ge@bsp.drv modify for android.bg get pss too slow
+	if (strcmp(current->comm, "android.bg") == 0) {
+		if ((unsigned long)(mss.pss >> (10 + PSS_SHIFT)) > 0) {
+			SEQ_PUT_DEC(" kB\nPss:            ", mss.pss >> PSS_SHIFT);
+		}
+		if ((mss.private_clean >> 10) > 0) {
+			SEQ_PUT_DEC(" kB\nPrivate_Clean:  ", mss.private_clean);
+		}
+		if ((mss.private_dirty >> 10) > 0) {
+			SEQ_PUT_DEC(" kB\nPrivate_Dirty:  ", mss.private_dirty);
+		}
+
+		seq_puts(m, " kB\n");
+		m_cache_vma(m, vma);
+		return 0;
+	}
+	#endif /*VENDOR_EDIT*/
+
 	show_map_vma(m, vma);
 	if (vma_get_anon_name(vma)) {
 		seq_puts(m, "Name:           ");
@@ -991,6 +1009,10 @@ const struct file_operations proc_pid_smaps_rollup_operations = {
 	.llseek		= seq_lseek,
 	.release	= smaps_rollup_release,
 };
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+#include "reserve_mmap.c"
+#endif
 
 enum clear_refs_types {
 	CLEAR_REFS_ALL = 1,
@@ -1693,7 +1715,7 @@ cont:
 		if (!page)
 			continue;
 
-		if (isolate_lru_page(compound_head(page)))
+		if (isolate_lru_page(page))
 			continue;
 
 		/* MADV_FREE clears pte dirty bit and then marks the page
@@ -1717,7 +1739,12 @@ cont:
 			break;
 	}
 	pte_unmap_unlock(pte - 1, ptl);
+#if defined(VENDOR_EDIT) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
+	reclaimed = reclaim_pages_from_list(&page_list, vma, NULL);
+#else
 	reclaimed = reclaim_pages_from_list(&page_list, vma);
+#endif
+
 	rp->nr_reclaimed += reclaimed;
 	rp->nr_to_reclaim -= reclaimed;
 	if (rp->nr_to_reclaim < 0)

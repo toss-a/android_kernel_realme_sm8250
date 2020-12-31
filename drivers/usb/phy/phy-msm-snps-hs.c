@@ -424,7 +424,14 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			PARAM_OVRD_MASK, phy->param_ovrd3);
 	}
 
+#ifdef VENDOR_EDIT
+/* Hang.Zhao@PSW.BSP.CHG.Basic,2019/9/24, Modify for USB2.0 eye diagraph */
+	dev_err(uphy->dev, "param x0:%02x x1:%02x x2:%02x x3:%02x\n",
+			phy->param_ovrd0, phy->param_ovrd1, phy->param_ovrd2, phy->param_ovrd3);
+	dev_err(uphy->dev, "x0:%08x x1:%08x x2:%08x x3:%08x\n",
+#else
 	dev_dbg(uphy->dev, "x0:%08x x1:%08x x2:%08x x3:%08x\n",
+#endif
 	readl_relaxed(phy->base + USB2PHY_USB_PHY_PARAMETER_OVERRIDE_X0),
 	readl_relaxed(phy->base + USB2PHY_USB_PHY_PARAMETER_OVERRIDE_X1),
 	readl_relaxed(phy->base + USB2PHY_USB_PHY_PARAMETER_OVERRIDE_X2),
@@ -615,7 +622,6 @@ static int msm_hsphy_dpdm_regulator_enable(struct regulator_dev *rdev)
 					UTMI_PHY_DATAPATH_CTRL_OVERRIDE_EN,
 					UTMI_PHY_DATAPATH_CTRL_OVERRIDE_EN);
 
-		msm_hsphy_enable_clocks(phy, false);
 		phy->dpdm_enable = true;
 	}
 	mutex_unlock(&phy->phy_lock);
@@ -634,6 +640,7 @@ static int msm_hsphy_dpdm_regulator_disable(struct regulator_dev *rdev)
 	mutex_lock(&phy->phy_lock);
 	if (phy->dpdm_enable) {
 		if (!phy->cable_connected) {
+			msm_hsphy_enable_clocks(phy, false);
 			ret = msm_hsphy_enable_power(phy, false);
 			if (ret < 0) {
 				mutex_unlock(&phy->phy_lock);
@@ -700,6 +707,14 @@ static void msm_hsphy_create_debugfs(struct msm_hsphy *phy)
 	debugfs_create_x8("param_ovrd1", 0644, phy->root, &phy->param_ovrd1);
 	debugfs_create_x8("param_ovrd2", 0644, phy->root, &phy->param_ovrd2);
 	debugfs_create_x8("param_ovrd3", 0644, phy->root, &phy->param_ovrd3);
+#ifdef VENDOR_EDIT
+/* Hang.Zhao@PSW.BSP.Charger.Basic,2019/9/24, Modify for USB2.0 eye diagraph */
+	phy->param_ovrd0 = 0x66;
+	phy->param_ovrd1 = 0x2D;
+	phy->param_ovrd2 = 0x1C;
+	phy->param_ovrd3 = 0x00;
+#endif /* VENDOR_EDIT */
+
 }
 
 static int msm_hsphy_probe(struct platform_device *pdev)

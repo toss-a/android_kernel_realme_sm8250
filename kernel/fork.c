@@ -101,6 +101,12 @@
 #include <asm/tlbflush.h>
 
 #include <trace/events/sched.h>
+#if defined(VENDOR_EDIT) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+/* Kui.Zhang@PSW.TEC.KERNEL.Performance, 2019/03/18,
+ * init the reserve area
+ */
+#include <linux/resmap_account.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
@@ -562,6 +568,7 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 		if (retval)
 			goto out;
 	}
+
 	/* a new mm has just been created */
 	retval = arch_dup_mmap(oldmm, mm);
 out:
@@ -971,6 +978,12 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm->mmap = NULL;
 	mm->mm_rb = RB_ROOT;
 	mm->vmacache_seqnum = 0;
+#if defined(VENDOR_EDIT) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+	/* Kui.Zhang@PSW.TEC.KERNEL.Performance, 2019/03/18,
+	 * init the reserve area
+	 */
+	init_reserve_mm(mm);
+#endif
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 	rwlock_init(&mm->mm_rb_lock);
 #endif
@@ -1902,6 +1915,12 @@ static __latent_entropy struct task_struct *copy_process(
 	p->sequential_io_avg	= 0;
 #endif
 
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+// Liujie.Xie@TECH.Kernel.Sched, 2019/08/29, add for stuck monitor
+    p->stuck_trace = 0;
+    memset(&p->oppo_stuck_info, 0, sizeof(struct oppo_uifirst_monitor_info));
+#endif
 	/* Perform scheduler related setup. Assign this task to a CPU. */
 	retval = sched_fork(clone_flags, p);
 	if (retval)

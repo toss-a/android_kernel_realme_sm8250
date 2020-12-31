@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  * Copyright (C) 2006-2007 Adam Belay <abelay@novell.com>
  * Copyright (C) 2009 Intel Corporation
  */
@@ -1713,11 +1713,26 @@ static void register_cluster_lpm_stats(struct lpm_cluster *cl,
 		register_cluster_lpm_stats(child, cl);
 }
 
+//yangmingjin@BSP.POWER.Basic 2019/05/30 add for RM_TAG_POWER_DEBUG
+#ifdef VENDOR_EDIT
+extern void rpmstats_print(bool suspend);
+extern void rpm_master_stats_print(void);
+extern bool is_not_in_aosd_mode(void);
+#endif
+/* VENDOR_EDIT */
 static int lpm_suspend_prepare(void)
 {
 	suspend_in_progress = true;
 	lpm_stats_suspend_enter();
-
+//yangmingjin@BSP.POWER.Basic 2019/05/30 add for RM_TAG_POWER_DEBUG
+#ifdef VENDOR_EDIT
+	rpmstats_print(true);
+	rpm_master_stats_print();
+	if(is_not_in_aosd_mode()){
+		printk(KERN_ERR"[RM_POWER]: warning!!! system can not enter vddmin mode.\n");
+	}
+#endif
+/* VENDOR_EDIT */
 	return 0;
 }
 
@@ -1725,6 +1740,11 @@ static void lpm_suspend_wake(void)
 {
 	suspend_in_progress = false;
 	lpm_stats_suspend_exit();
+//yangmingjin@BSP.POWER.Basic 2019/05/30 add for RM_TAG_POWER_DEBUG
+#ifdef VENDOR_EDIT
+	rpmstats_print(false);
+#endif
+/* VENDOR_EDIT */
 }
 
 static int lpm_suspend_enter(suspend_state_t state)
@@ -1842,7 +1862,6 @@ static int lpm_probe(struct platform_device *pdev)
 	md_entry.virt_addr = (uintptr_t)lpm_debug;
 	md_entry.phys_addr = lpm_debug_phys;
 	md_entry.size = size;
-	md_entry.id = MINIDUMP_DEFAULT_ID;
 	if (msm_minidump_add_region(&md_entry))
 		pr_info("Failed to add lpm_debug in Minidump\n");
 

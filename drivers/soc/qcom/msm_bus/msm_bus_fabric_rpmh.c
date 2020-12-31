@@ -355,10 +355,8 @@ static int tcs_cmd_list_gen(int *n_active,
 							BCM_TCS_CMD_COMMIT_MASK;
 						cmdlist_sleep[last_tcs].data |=
 							BCM_TCS_CMD_COMMIT_MASK;
-						cmdlist_wake[last_tcs].wait =
-							true;
-						cmdlist_sleep[last_tcs].wait =
-							true;
+						cmdlist_wake[last_tcs].wait =true;
+						cmdlist_sleep[last_tcs].wait =true;
 						idx++;
 					}
 					continue;
@@ -654,6 +652,8 @@ int msm_bus_commit_data(struct list_head *clist)
 						__func__, ret);
 	}
 	if (cnt_wake || (cur_rsc->node_info->id == MSM_BUS_RSC_DISP)) {
+
+
 		ret = rpmh_write_batch(cur_mbox, RPMH_WAKE_ONLY_STATE,
 							cmdlist_wake, n_wake);
 		if (ret)
@@ -661,6 +661,7 @@ int msm_bus_commit_data(struct list_head *clist)
 							__func__, ret);
 	}
 	if (cnt_sleep || (cur_rsc->node_info->id == MSM_BUS_RSC_DISP)) {
+
 		ret = rpmh_write_batch(cur_mbox, RPMH_SLEEP_STATE,
 							cmdlist_sleep, n_sleep);
 		if (ret)

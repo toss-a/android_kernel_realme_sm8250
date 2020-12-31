@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved. */
 
 #include <linux/firmware.h>
 #include <linux/module.h>
 #include <linux/soc/qcom/qmi.h>
+
+#ifdef VENDOR_EDIT
+//
+//
+#include <soc/oppo/oppo_project.h>
+#include <linux/fs.h>
+#endif /* VENDOR_EDIT */
 
 #include "bus.h"
 #include "debug.h"
@@ -12,7 +19,13 @@
 
 #define WLFW_SERVICE_INS_ID_V01		1
 #define WLFW_CLIENT_ID			0x4b4e454c
+#ifndef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Hardware.1065227 , 2019/10/17
+//Modify for: multi projects using different bdf
 #define MAX_BDF_FILE_NAME		13
+#else
+#define MAX_BDF_FILE_NAME		17
+#endif /* VENDOR_EDIT */
 #define BDF_FILE_NAME_PREFIX		"bdwlan"
 #define ELF_BDF_FILE_NAME		"bdwlan.elf"
 #define ELF_BDF_FILE_NAME_PREFIX	"bdwlan.e"
@@ -27,6 +40,11 @@
 #define IMS_TIMEOUT                     QMI_WLFW_TIMEOUT_JF
 
 #define QMI_WLFW_MAX_RECV_BUF_SIZE	SZ_8K
+
+
+#define QMI_WLFW_MAC_READY_TIMEOUT_MS	50
+#define QMI_WLFW_MAC_READY_MAX_RETRY	200
+
 
 #define QMI_WLFW_MAC_READY_TIMEOUT_MS	50
 #define QMI_WLFW_MAC_READY_MAX_RETRY	200
@@ -157,8 +175,6 @@ static int cnss_wlfw_host_cap_send_sync(struct cnss_plat_data *plat_priv)
 	struct wlfw_host_cap_resp_msg_v01 *resp;
 	struct qmi_txn txn;
 	int ret = 0;
-	u64 iova_start = 0, iova_size = 0,
-	    iova_ipa_start = 0, iova_ipa_size = 0;
 
 	cnss_pr_dbg("Sending host capability message, state: 0x%lx\n",
 		    plat_priv->driver_state);
@@ -199,16 +215,6 @@ static int cnss_wlfw_host_cap_send_sync(struct cnss_plat_data *plat_priv)
 	req->cal_done_valid = 1;
 	req->cal_done = plat_priv->cal_done;
 	cnss_pr_dbg("Calibration done is %d\n", plat_priv->cal_done);
-
-	if (!cnss_bus_get_iova(plat_priv, &iova_start, &iova_size) &&
-	    !cnss_bus_get_iova_ipa(plat_priv, &iova_ipa_start,
-				   &iova_ipa_size)) {
-		req->ddr_range_valid = 1;
-		req->ddr_range[0].start = iova_start;
-		req->ddr_range[0].size = iova_size + iova_ipa_size;
-		cnss_pr_dbg("Sending iova starting 0x%llx with size 0x%llx\n",
-			    req->ddr_range[0].start, req->ddr_range[0].size);
-	}
 
 	ret = qmi_txn_init(&plat_priv->qmi_wlfw, &txn,
 			   wlfw_host_cap_resp_msg_v01_ei, resp);
@@ -416,11 +422,9 @@ int cnss_wlfw_tgt_cap_send_sync(struct cnss_plat_data *plat_priv)
 			resp->fw_version_info.fw_build_timestamp,
 			QMI_WLFW_MAX_TIMESTAMP_LEN + 1);
 	}
-	if (resp->fw_build_id_valid) {
-		resp->fw_build_id[QMI_WLFW_MAX_BUILD_ID_LEN] = '\0';
+	if (resp->fw_build_id_valid)
 		strlcpy(plat_priv->fw_build_id, resp->fw_build_id,
 			QMI_WLFW_MAX_BUILD_ID_LEN + 1);
-	}
 	if (resp->voltage_mv_valid) {
 		plat_priv->cpr_info.voltage = resp->voltage_mv;
 		cnss_pr_dbg("Voltage for CPR: %dmV\n",
@@ -505,6 +509,89 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 	return ret;
 }
 
+
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Hardware.1065227 , 2019/10/17
+//Add for: multi projects using different bdf
+static int cnss_get_bdf_file_name_oppo(struct cnss_plat_data *plat_priv,
+				  u32 bdf_type, char *filename, u32 filename_len) {
+	int ret = 0;
+	int prjVersion = 0;
+
+	if (bdf_type != CNSS_BDF_ELF) {
+		// only handle bdwlan.elf issue
+		return cnss_get_bdf_file_name(plat_priv, bdf_type, filename, filename_len);
+	}
+
+	prjVersion = get_project();
+	switch (prjVersion) {
+	case 19065:
+	case 19063:
+		snprintf(filename, filename_len, "bdwlan_19065.elf");
+		break;
+	case 19066:
+		snprintf(filename, filename_len, "bdwlan_19066.elf");
+		break;
+	case 19361:
+		snprintf(filename, filename_len, "bdwlan_19361.elf");
+		break;
+	case 19362:
+		snprintf(filename, filename_len, "bdwlan_19362.elf");
+		break;
+	#ifdef VENDOR_EDIT
+	//zhiyong.jiang@PSW.CN.WiFi.internet, 2019/12/12
+	//Add for: multi projects using different bdf
+	case 19795:
+	case 19796:
+	case 19797:
+	case 19706:
+		snprintf(filename, filename_len, "bdwlan_19795.elf");
+		break;
+	case 19705:
+		snprintf(filename, filename_len, "bdwlan_19705.elf");
+		break;
+	case 20607:
+		snprintf(filename, filename_len, "bdwlan_20607.elf");
+		break;
+	#endif /* VENDOR_EDIT */
+	case 19161:
+		snprintf(filename, filename_len, "bdwlan_19161.elf");
+		break;
+	default:
+		// for other projects, use default elf
+		snprintf(filename, filename_len, "bdwlan.elf");
+	}
+	return ret;
+}
+
+// check if read bdf is not complete through compare the size with vendor/etc/wifi bdf file
+// return 0 if everything ok, otherwise return a non-zero value
+int check_bdf_size(unsigned int download_bdf_size, char* bdf_file_name) {
+	char str[48];
+	struct kstat* stat = NULL;
+	int ret = 0;
+
+	snprintf(str, sizeof(str), "%s%s", "/vendor/etc/wifi/", bdf_file_name);
+	cnss_pr_dbg("vendor file name: %s", str);
+	stat = (struct kstat*) kzalloc(sizeof(struct kstat), GFP_KERNEL);
+	if (!stat)
+		return -ENOMEM;
+
+	ret = vfs_stat(str, stat);
+	if (ret < 0)
+		goto out;
+
+	cnss_pr_dbg("dl size: %d, stat size: %d", download_bdf_size, stat->size);
+	if (download_bdf_size < stat->size) {
+		ret = -1;
+	}
+
+out:
+	kfree(stat);
+	return ret;
+}
+#endif /* VENDOR_EDIT */
+
 int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 				 u32 bdf_type)
 {
@@ -516,6 +603,11 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 	const u8 *temp;
 	unsigned int remaining;
 	int ret = 0;
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Hardware.1065227 , 2019/10/17
+//Modify for: multi projects using different bdf
+	int loading_bdf_retry_cnt = 5;
+#endif /* VENDOR_EDIT */
 
 	cnss_pr_dbg("Sending BDF download message, state: 0x%lx, type: %d\n",
 		    plat_priv->driver_state, bdf_type);
@@ -530,8 +622,17 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 		return -ENOMEM;
 	}
 
+#ifndef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Hardware.1065227 , 2019/10/17
+//Modify for: multi projects using different bdf
 	ret = cnss_get_bdf_file_name(plat_priv, bdf_type,
 				     filename, sizeof(filename));
+#else /* VENDOR_EDIT */
+	ret = cnss_get_bdf_file_name_oppo(plat_priv, bdf_type,
+					 filename, sizeof(filename));
+	cnss_pr_dbg("get bdf file name: %s\n", filename);
+#endif /* VENDOR_EDIT */
+
 	if (ret > 0) {
 		temp = DUMMY_BDF_FILE_NAME;
 		remaining = MAX_BDF_FILE_NAME;
@@ -540,7 +641,14 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 		goto err_req_fw;
 	}
 
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Hardware.1065227 , 2019/10/17
+//Modify for: multi projects using different bdf
+request_bdf:
+	ret = request_firmware_no_cache(&fw_entry, filename, &plat_priv->plat_dev->dev);
+#else /* VENDOR_EDIT */
 	ret = request_firmware(&fw_entry, filename, &plat_priv->plat_dev->dev);
+#endif /* VENDOR_EDIT */
 	if (ret) {
 		cnss_pr_err("Failed to load BDF: %s\n", filename);
 		goto err_req_fw;
@@ -551,6 +659,21 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 
 bypass_bdf:
 	cnss_pr_dbg("Downloading BDF: %s, size: %u\n", filename, remaining);
+
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Hardware.1065227 , 2019/10/17
+//Modify for: multi projects using different bdf
+	if (strncmp(filename, "bdwlan", 6) == 0
+		&& check_bdf_size(remaining, filename) && loading_bdf_retry_cnt > 0) {
+		loading_bdf_retry_cnt -= 1;
+		cnss_pr_dbg("bdf size is too small, maybe bdf is under transfer, retry loading..");
+		// sleep 400 ms
+		msleep_interruptible(400);
+		goto request_bdf;
+	}
+	// reset counter
+	loading_bdf_retry_cnt = 5;
+#endif /* VENDOR_EDIT */
 
 	while (remaining) {
 		req->valid = 1;

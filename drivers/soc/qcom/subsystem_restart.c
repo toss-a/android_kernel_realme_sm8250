@@ -35,6 +35,12 @@
 #include <linux/timer.h>
 
 #include "peripheral-loader.h"
+#ifdef VENDOR_EDIT
+/*Bin.Li@BSP.Kernel.Driver, 2019/10/24, Add for disable dump for subsys crash*/
+#include <soc/oppo/oppo_project.h>
+extern bool oem_is_fulldump(void);
+bool delay_panic = false;
+#endif
 
 #define DISABLE_SSR 0x9889deed
 /* If set to 0x9889deed, call to subsystem_restart_dev() returns immediately */
@@ -267,6 +273,13 @@ static ssize_t restart_level_store(struct device *dev,
 	struct subsys_device *subsys = to_subsys(dev);
 	const char *p;
 	int i, orig_count = count;
+
+#ifdef VENDOR_EDIT
+/*xing.xiong@BSP.Kernel.Driver, 2020-02-11, Add for disable slpi reboot in Aging mode*/
+	if (strcmp(subsys->desc->fw_name, "slpi") == 0) {
+		return orig_count;
+	}
+#endif
 
 	p = memchr(buf, '\n', count);
 	if (p)
@@ -831,6 +844,62 @@ struct subsys_device *find_subsys_device(const char *str)
 }
 EXPORT_SYMBOL(find_subsys_device);
 
+#ifdef VENDOR_EDIT
+/*Murphy@BSP.sensor, 2019/09/10, Add for sensor subsys restart*/
+int restart_sensor_subsys(void)
+{
+	struct subsys_device *subsys_adsp = (struct subsys_device *)subsystem_get("adsp");
+	struct subsys_device *subsys_slpi = (struct subsys_device *)subsystem_get("slpi");
+	struct subsys_device *subsys = NULL;
+	char * name_adsp = "adsp";
+	char * name_slpi = "slpi";
+	char * name = NULL;
+	int restart_level = 0;
+
+	pr_info("%s call\n", __func__);
+
+	if (subsys_slpi) {
+		subsys = subsys_slpi;
+		name = name_slpi;
+	} else if (subsys_adsp) {
+		subsys = subsys_adsp;
+		name = name_adsp;
+	} else {
+		return -ENODEV;
+	}
+
+	restart_level = subsys->restart_level;
+	subsys->restart_level = RESET_SUBSYS_COUPLED;
+
+	if (subsystem_restart(name) == -ENODEV)
+		pr_err("%s: call %s failed\n", __func__,name);
+
+	subsys->restart_level = restart_level;
+	return 0;
+}
+EXPORT_SYMBOL(restart_sensor_subsys);
+#endif
+
+#ifdef VENDOR_EDIT
+/* Fuchun.Liao@BSP.CHG.Basic 2018/11/27 modify for rf cable detect */
+int op_restart_modem(void)
+{
+	struct subsys_device *subsys = find_subsys_device("modem");
+	int restart_level;
+
+	if (!subsys)
+		return -ENODEV;
+	pr_err("%s\n", __func__);
+	restart_level = subsys->restart_level;
+	subsys->restart_level = RESET_SUBSYS_COUPLED;
+	if (subsystem_restart("modem") == -ENODEV)
+		pr_err("%s: SSR call modem failed\n", __func__);
+	subsys->restart_level = restart_level;
+	return 0;
+}
+EXPORT_SYMBOL(op_restart_modem);
+#endif /* VENDOR_EDIT */
+
 static int subsys_start(struct subsys_device *subsys)
 {
 	int ret;
@@ -1238,7 +1307,12 @@ int subsystem_restart_dev(struct subsys_device *dev)
 
 	pr_info("Restart sequence requested for %s, restart_level = %s.\n",
 		name, restart_levels[dev->restart_level]);
-
+#ifdef VENDOR_EDIT
+/*Bin.Li@BSP.Kernel.Driver, 2019/10/24, Add for disable dump for subsys crash*/
+#ifdef CONFIG_SUBSYS_DUMP_CLOSE_CONFIG
+	return 0;
+#endif
+#endif
 	if (disable_restart_work == DISABLE_SSR) {
 		pr_warn("subsys-restart: Ignoring restart request for %s\n",
 									name);
@@ -1251,8 +1325,19 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		__subsystem_restart_dev(dev);
 		break;
 	case RESET_SOC:
+	#ifdef VENDOR_EDIT
+	/*xing.xiong@BSP.Kernel.Driver, 2019/10/29, Add for 5G modem dump*/
+		if (!strcmp(name, "esoc0") && oem_is_fulldump()) {
+			delay_panic = true;
+			__subsystem_restart_dev(dev);	
+		} else {
+			__pm_stay_awake(&dev->ssr_wlock);
+			schedule_work(&dev->device_restart_work);
+		}
+	#else
 		__pm_stay_awake(&dev->ssr_wlock);
 		schedule_work(&dev->device_restart_work);
+	#endif
 		return 0;
 	default:
 		panic("subsys-restart: Unknown restart level!\n");
@@ -1825,6 +1910,16 @@ struct subsys_device *subsys_register(struct subsys_desc *desc)
 	subsys->desc->state = NULL;
 	strlcpy(subsys->desc->fw_name, desc->name,
 			sizeof(subsys->desc->fw_name));
+#ifdef VENDOR_EDIT
+	/*Bin.Li@BSP.Kernel.Driver, 2019/10/24, Add for disable dump for subsys crash*/
+	if (!oppo_daily_build() && !(get_eng_version() == AGING)) {
+		subsys->restart_level = RESET_SUBSYS_COUPLED;
+	}
+
+	if (strcmp(desc->fw_name, "slpi") == 0) {
+		subsys->restart_level = RESET_SUBSYS_COUPLED;
+	}
+#endif
 
 	subsys->notify = subsys_notif_add_subsys(desc->name);
 	subsys->early_notify = subsys_get_early_notif_info(desc->name);

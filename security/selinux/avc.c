@@ -33,6 +33,10 @@
 #include "avc.h"
 #include "avc_ss.h"
 #include "classmap.h"
+#ifdef VENDOR_EDIT
+//Jiemin.Zhu@PSW.Android.SELinux, 2018/01/13, Add for disable selinux denied logs in MP version
+#include "proc.h"
+#endif /* VENDOR_EDIT */
 
 #define AVC_CACHE_SLOTS			512
 #define AVC_DEF_CACHE_THRESHOLD		512
@@ -771,6 +775,12 @@ noinline int slow_avc_audit(struct selinux_state *state,
 {
 	struct common_audit_data stack_data;
 	struct selinux_audit_data sad;
+
+#ifdef VENDOR_EDIT
+//Jiemin.Zhu@PSW.Android.SELinux, 2018/01/13, Add for disable selinux denied logs in MP version
+	if (!is_avc_audit_enable())
+		return 0;
+#endif /* VENDOR_EDIT */
 
 	if (!a) {
 		a = &stack_data;

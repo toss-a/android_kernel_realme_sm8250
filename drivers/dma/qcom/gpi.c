@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/atomic.h>
@@ -1461,7 +1461,10 @@ static void gpi_process_imed_data_event(struct gpii_chan *gpii_chan,
 		(ch_ring->el_size * imed_event->tre_index);
 	struct msm_gpi_dma_async_tx_cb_param *tx_cb_param;
 	unsigned long flags;
+#ifdef VENDOR_EDIT
+/* Cong.Dai@BSP.Kernel.Stability, 2020/02/07, add for Free gpi_desc after RX transfer is done, CR 2586714*/
 	u32 chid;
+#endif
 
 	/*
 	 * If channel not active don't process event but let
@@ -1514,6 +1517,8 @@ static void gpi_process_imed_data_event(struct gpii_chan *gpii_chan,
 	/* make sure rp updates are immediately visible to all cores */
 	smp_wmb();
 
+#ifdef VENDOR_EDIT
+/* Cong.Dai@BSP.Kernel.Stability, 2020/02/07, add for Free gpi_desc after RX transfer is done, CR 2586714*/
 	chid = imed_event->chid;
 	if (imed_event->code == MSM_GPI_TCE_EOT && gpii->ieob_set) {
 		if (chid == GPI_RX_CHAN)
@@ -1521,6 +1526,10 @@ static void gpi_process_imed_data_event(struct gpii_chan *gpii_chan,
 		else
 			return;
 	}
+#else
+	if (imed_event->code == MSM_GPI_TCE_EOT && gpii->ieob_set)
+		return;
+#endif
 
 	tx_cb_param = vd->tx.callback_param;
 	if (vd->tx.callback && tx_cb_param) {
@@ -1538,7 +1547,10 @@ static void gpi_process_imed_data_event(struct gpii_chan *gpii_chan,
 		vd->tx.callback(tx_cb_param);
 	}
 
+#ifdef VENDOR_EDIT
+/* Cong.Dai@BSP.Kernel.Stability, 2020/02/07, add for Free gpi_desc after RX transfer is done, CR 2586714*/
 gpi_free_desc:
+#endif
 	spin_lock_irqsave(&gpii_chan->vc.lock, flags);
 	list_del(&vd->node);
 	spin_unlock_irqrestore(&gpii_chan->vc.lock, flags);
@@ -1557,7 +1569,10 @@ static void gpi_process_xfer_compl_event(struct gpii_chan *gpii_chan,
 	struct msm_gpi_dma_async_tx_cb_param *tx_cb_param;
 	struct gpi_desc *gpi_desc;
 	unsigned long flags;
+#ifdef VENDOR_EDIT
+/* Cong.Dai@BSP.Kernel.Stability, 2020/02/07, add for Free gpi_desc after RX transfer is done, CR 2586714*/
 	u32 chid;
+#endif
 
 	/* only process events on active channel */
 	if (unlikely(gpii_chan->pm_state != ACTIVE_STATE)) {
@@ -1602,6 +1617,8 @@ static void gpi_process_xfer_compl_event(struct gpii_chan *gpii_chan,
 	/* update must be visible to other cores */
 	smp_wmb();
 
+#ifdef VENDOR_EDIT
+/* Cong.Dai@BSP.Kernel.Stability, 2020/02/07, add for Free gpi_desc after RX transfer is done, CR 2586714*/
 	chid = compl_event->chid;
 	if (compl_event->code == MSM_GPI_TCE_EOT && gpii->ieob_set) {
 		if (chid == GPI_RX_CHAN)
@@ -1609,6 +1626,10 @@ static void gpi_process_xfer_compl_event(struct gpii_chan *gpii_chan,
 		else
 			return;
 	}
+#else
+	if (compl_event->code == MSM_GPI_TCE_EOT && gpii->ieob_set)
+		return;
+#endif
 
 	tx_cb_param = vd->tx.callback_param;
 	if (vd->tx.callback && tx_cb_param) {
@@ -1622,7 +1643,10 @@ static void gpi_process_xfer_compl_event(struct gpii_chan *gpii_chan,
 		vd->tx.callback(tx_cb_param);
 	}
 
+#ifdef VENDOR_EDIT
+/* Cong.Dai@BSP.Kernel.Stability, 2020/02/07, add for Free gpi_desc after RX transfer is done, CR 2586714*/
 gpi_free_desc:
+#endif
 	spin_lock_irqsave(&gpii_chan->vc.lock, flags);
 	list_del(&vd->node);
 	spin_unlock_irqrestore(&gpii_chan->vc.lock, flags);

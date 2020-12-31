@@ -18,5 +18,8 @@ source "drivers/soc/ux500/Kconfig"
 source "drivers/soc/versatile/Kconfig"
 source "drivers/soc/xilinx/Kconfig"
 source "drivers/soc/zte/Kconfig"
-
+#ifdef VENDOR_EDIT
+#Fuchun.Liao@BSP.CHG.Basic 2019/09/10 add for port oppo driver
+source "drivers/soc/oppo/Kconfig"
+#endif /* VENDOR_EDIT */
 endmenu

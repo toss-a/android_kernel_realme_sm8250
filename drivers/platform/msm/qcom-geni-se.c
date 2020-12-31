@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -69,6 +69,8 @@ struct bus_vectors {
  * @bus_bw_set_noc:	Clock plan for DDR path.
  * @cur_bus_bw_idx:	Current index within the bus clock plan.
  * @cur_bus_bw_idx_noc:	Current index within the DDR path clock plan.
+ * @num_clk_levels:	Number of valid clock levels in clk_perf_tbl.
+ * @clk_perf_tbl:	Table of clock frequency input to Serial Engine clock.
  * @log_ctx:		Logging context to hold the debug information.
  * @vectors:		Structure to store Master End and Slave End IDs for
 			QUPv3 clock and DDR path bus BW request.
@@ -105,6 +107,8 @@ struct geni_se_device {
 	unsigned long *bus_bw_set_noc;
 	int cur_bus_bw_idx;
 	int cur_bus_bw_idx_noc;
+	unsigned int num_clk_levels;
+	unsigned long *clk_perf_tbl;
 	void *log_ctx;
 	struct bus_vectors *vectors;
 	int num_paths;
@@ -1131,31 +1135,31 @@ int geni_se_clk_tbl_get(struct se_geni_rsc *rsc, unsigned long **tbl)
 	mutex_lock(&geni_se_dev->geni_dev_lock);
 	*tbl = NULL;
 
-	if (rsc->clk_perf_tbl) {
-		*tbl = rsc->clk_perf_tbl;
-		ret = rsc->num_clk_levels;
+	if (geni_se_dev->clk_perf_tbl) {
+		*tbl = geni_se_dev->clk_perf_tbl;
+		ret = geni_se_dev->num_clk_levels;
 		goto exit_se_clk_tbl_get;
 	}
 
-	rsc->clk_perf_tbl = kzalloc(sizeof(*rsc->clk_perf_tbl) *
+	geni_se_dev->clk_perf_tbl = kzalloc(sizeof(*geni_se_dev->clk_perf_tbl) *
 						MAX_CLK_PERF_LEVEL, GFP_KERNEL);
-	if (!rsc->clk_perf_tbl) {
+	if (!geni_se_dev->clk_perf_tbl) {
 		ret = -ENOMEM;
 		goto exit_se_clk_tbl_get;
 	}
 
 	for (i = 0; i < MAX_CLK_PERF_LEVEL; i++) {
-		rsc->clk_perf_tbl[i] = clk_round_rate(rsc->se_clk,
+		geni_se_dev->clk_perf_tbl[i] = clk_round_rate(rsc->se_clk,
 								prev_freq + 1);
-		if (rsc->clk_perf_tbl[i] == prev_freq) {
-			rsc->clk_perf_tbl[i] = 0;
+		if (geni_se_dev->clk_perf_tbl[i] == prev_freq) {
+			geni_se_dev->clk_perf_tbl[i] = 0;
 			break;
 		}
-		prev_freq = rsc->clk_perf_tbl[i];
+		prev_freq = geni_se_dev->clk_perf_tbl[i];
 	}
-	rsc->num_clk_levels = i;
-	*tbl = rsc->clk_perf_tbl;
-	ret = rsc->num_clk_levels;
+	geni_se_dev->num_clk_levels = i;
+	*tbl = geni_se_dev->clk_perf_tbl;
+	ret = geni_se_dev->num_clk_levels;
 exit_se_clk_tbl_get:
 	mutex_unlock(&geni_se_dev->geni_dev_lock);
 	return ret;
@@ -1561,8 +1565,7 @@ void geni_se_dump_dbg_regs(struct se_geni_rsc *rsc, void __iomem *base,
 		return;
 
 	geni_se_dev = dev_get_drvdata(rsc->wrapper_dev);
-	if (unlikely(!geni_se_dev || !(geni_se_dev->bus_bw ||
-					geni_se_dev->bus_bw_noc)))
+	if (unlikely(!geni_se_dev || !geni_se_dev->bus_bw))
 		return;
 	if (unlikely(list_empty(&rsc->ab_list) || list_empty(&rsc->ib_list))) {
 		GENI_SE_DBG(ipc, false, NULL, "%s: Clocks not on\n", __func__);

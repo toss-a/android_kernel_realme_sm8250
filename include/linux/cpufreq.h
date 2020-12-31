@@ -564,6 +564,17 @@ struct governor_attr {
 			 size_t count);
 };
 
+static inline bool cpufreq_this_cpu_can_update(struct cpufreq_policy *policy)
+{
+	/*
+	 * Allow remote callbacks if:
+	 * - dvfs_possible_from_any_cpu flag is set
+	 * - the local and remote CPUs share cpufreq policy
+	 */
+	return policy->dvfs_possible_from_any_cpu ||
+		cpumask_test_cpu(smp_processor_id(), policy->cpus);
+}
+
 /*********************************************************************
  *                     FREQUENCY TABLE HELPERS                       *
  *********************************************************************/
@@ -947,6 +958,14 @@ extern void arch_set_freq_scale(struct cpumask *cpus, unsigned long cur_freq,
 				unsigned long max_freq);
 extern void arch_set_max_freq_scale(struct cpumask *cpus,
 				    unsigned long policy_max_freq);
+
+#ifdef VENDOR_EDIT
+struct list_head *get_cpufreq_policy_list(void);
+#endif /* VENDOR_EDIT */
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_SCHEDUTIL_USE_TL)
+ssize_t set_sugov_tl(unsigned int cpu, char *buf);
+#endif
 
 /* the following are really really optional */
 extern struct freq_attr cpufreq_freq_attr_scaling_available_freqs;

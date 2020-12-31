@@ -6,6 +6,7 @@
 #include <linux/idr.h>
 #include <linux/slab.h>
 #include "esoc.h"
+#include "soc/oppo/boot_mode.h"
 
 static DEFINE_IDA(esoc_ida);
 
@@ -379,6 +380,11 @@ EXPORT_SYMBOL(esoc_drv_register);
 static int __init esoc_init(void)
 {
 	int ret;
+
+	if (qpnp_is_power_off_charging() &&
+		(get_boot_mode() != MSM_BOOT_MODE__WLAN) &&
+		(get_boot_mode() != MSM_BOOT_MODE__RF))
+		return 0;
 
 	ret = device_register(&esoc_bus);
 	if (ret) {

@@ -518,6 +518,8 @@ int show_interrupts(struct seq_file *p, void *v)
 	if (desc->name)
 		seq_printf(p, "-%-8s", desc->name);
 
+	seq_printf(p, " (%d)", desc->depth);
+
 	action = desc->action;
 	if (action) {
 		seq_printf(p, "  %s", action->name);

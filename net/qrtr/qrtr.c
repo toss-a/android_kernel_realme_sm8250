@@ -28,6 +28,15 @@
 #include "qrtr.h"
 
 #define QRTR_LOG_PAGE_CNT 4
+//yangmingjin@BSP.POWER.Basic 2019/05/30 add for RM_TAG_POWER_DEBUG
+#ifdef VENDOR_EDIT
+static int ipc_router_debug_mask = 0;
+
+void set_ipc_router_debug_mask(int debug_mask){
+	ipc_router_debug_mask = !!debug_mask;
+};
+#endif
+/*VENDOR_EDIT*/
 #define QRTR_INFO(ctx, x, ...)				\
 	ipc_log_string(ctx, x, ##__VA_ARGS__)
 
@@ -45,6 +54,7 @@
 #define QRTR_STATE_INIT	-1
 
 #define AID_VENDOR_QRTR	KGIDT_INIT(2906)
+
 
 /**
  * struct qrtr_hdr_v1 - (I|R)PCrouter packet header version 1
@@ -216,6 +226,7 @@ static void qrtr_log_tx_msg(struct qrtr_node *node, struct qrtr_hdr_v1 *hdr,
 
 	if (!hdr || !skb)
 		return;
+
 
 	if (hdr->type == QRTR_TYPE_DATA) {
 		skb_copy_bits(skb, QRTR_HDR_MAX_SIZE, &pl_buf, sizeof(pl_buf));
@@ -697,20 +708,15 @@ EXPORT_SYMBOL(qrtr_peek_pkt_size);
 static void qrtr_alloc_backup(struct work_struct *work)
 {
 	struct sk_buff *skb;
-	int errcode;
 
 	while (skb_queue_len(&qrtr_backup_lo) < QRTR_BACKUP_LO_NUM) {
-		skb = alloc_skb_with_frags(sizeof(struct qrtr_hdr_v1),
-					   QRTR_BACKUP_LO_SIZE, 0, &errcode,
-					   GFP_KERNEL);
+		skb = alloc_skb(QRTR_BACKUP_LO_SIZE, GFP_KERNEL);
 		if (!skb)
 			break;
 		skb_queue_tail(&qrtr_backup_lo, skb);
 	}
 	while (skb_queue_len(&qrtr_backup_hi) < QRTR_BACKUP_HI_NUM) {
-		skb = alloc_skb_with_frags(sizeof(struct qrtr_hdr_v1),
-					   QRTR_BACKUP_HI_SIZE, 0, &errcode,
-					   GFP_KERNEL);
+		skb = alloc_skb(QRTR_BACKUP_HI_SIZE, GFP_KERNEL);
 		if (!skb)
 			break;
 		skb_queue_tail(&qrtr_backup_hi, skb);
@@ -1009,8 +1015,6 @@ static void qrtr_node_rx_work(struct kthread_work *work)
 				kfree_skb(skb);
 			} else {
 				if (sock_queue_rcv_skb(&ipc->sk, skb)) {
-					pr_err("%s qrtr pkt dropped flow[%d]\n",
-					       __func__, cb->confirm_rx);
 					kfree_skb(skb);
 				}
 

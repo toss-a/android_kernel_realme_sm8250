@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/dma-mapping.h>
@@ -64,6 +64,8 @@
 #define TETH_AGGR_BYTE_LIMIT 24
 #define TETH_AGGR_DL_BYTE_LIMIT 16
 #define TRE_BUFF_SIZE 32768
+#define IPA_HOLB_TMR_EN 0x1
+#define IPA_HOLB_TMR_DIS 0x0
 #define RNDIS_IPA_DFLT_RT_HDL 0
 #define IPA_POLL_FOR_EMPTINESS_NUM 50
 #define IPA_POLL_FOR_EMPTINESS_SLEEP_USEC 20
@@ -492,7 +494,7 @@ static int ipa_mpm_set_dma_mode(enum ipa_client_type src_pipe,
 	memset(cmd_pyld, 0, sizeof(cmd_pyld));
 
 	/* First step is to clear IPA Pipeline before changing DMA mode */
-	if (ipa3_get_ep_mapping(src_pipe) != IPA_EP_NOT_ALLOCATED) {
+	if (ipa3_get_ep_mapping(src_pipe) != -1) {
 		i = ipa3_get_ep_mapping(src_pipe);
 		reg_write_coal_close.skip_pipeline_clear = false;
 		reg_write_coal_close.pipeline_clear_options = IPAHAL_HPS_CLEAR;
@@ -1077,6 +1079,9 @@ static int ipa_mpm_connect_mhip_gsi_pipe(enum ipa_client_type mhip_client,
 	gsi_params.evt_scratch.mhip.rp_mod_timer_id = 0;
 	gsi_params.evt_scratch.mhip.rp_mod_timer_running = 0;
 	gsi_params.evt_scratch.mhip.fixed_buffer_sz = TRE_BUFF_SIZE;
+
+	if (IPA_CLIENT_IS_PROD(mhip_client))
+		gsi_params.evt_scratch.mhip.rp_mod_threshold = 4;
 
 	/* Channel Params */
 	gsi_params.chan_params.prot = GSI_CHAN_PROT_MHIP;
@@ -2188,7 +2193,7 @@ static int ipa_mpm_mhi_probe_cb(struct mhi_device *mhi_dev,
 		ch->chan_props.ch_ctx.rlen = (IPA_MPM_RING_LEN) *
 			GSI_EVT_RING_RE_SIZE_16B;
 		/* Store Event properties */
-		ch->evt_props.ev_ctx.update_rp_modc = 1;
+		ch->evt_props.ev_ctx.update_rp_modc = 0;
 		ch->evt_props.ev_ctx.update_rp_intmodt = 0;
 		ch->evt_props.ev_ctx.ertype = 1;
 		ch->evt_props.ev_ctx.rlen = (IPA_MPM_RING_LEN) *

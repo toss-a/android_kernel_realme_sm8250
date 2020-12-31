@@ -2500,13 +2500,8 @@ static void *__vmalloc_node(unsigned long size, unsigned long align,
 			    gfp_t gfp_mask, pgprot_t prot,
 			    int node, const void *caller)
 {
-#ifdef CONFIG_ENABLE_VMALLOC_SAVING
-	return __vmalloc_node_range(size, align, PAGE_OFFSET, VMALLOC_END,
-				gfp_mask, prot, 0, node, caller);
-#else
 	return __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END,
 				gfp_mask, prot, 0, node, caller);
-#endif
 }
 
 void *__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot)
@@ -3440,7 +3435,11 @@ static int s_show(struct seq_file *m, void *p)
 	seq_printf(m, "0x%pK-0x%pK %7ld",
 		v->addr, v->addr + v->size, v->size);
 
-	if (v->caller)
+#ifdef VENDOR_EDIT //wanghao@bsp.drv modify for android.bg get pss too slow
+    if (v->caller && (strcmp(current->comm, "android.bg") != 0))
+#else
+    if (v->caller)
+#endif
 		seq_printf(m, " %pS", v->caller);
 
 	if (v->nr_pages)

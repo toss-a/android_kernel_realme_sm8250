@@ -100,6 +100,78 @@ static long find_available_max_freq(struct devfreq *devfreq)
 	return max_freq;
 }
 
+#ifdef VENDOR_EDIT
+//zoushaojun@SRC.hypnus.2018-04-05. add support to set devfreq limit
+int devfreq_get_limit(struct devfreq *df, unsigned long *min, unsigned long *max)
+{
+        unsigned long chipinfo_min = ~0, chipinfo_max = 0;
+        int idx;
+
+        if (min)
+                *min = 0;
+        if (max)
+                *max = 0;
+
+        if (!df || !df->profile->freq_table) {
+                pr_err("No devfreq or No table\n");
+                return -EINVAL;
+        }
+
+        mutex_lock(&df->lock);
+        for (idx = 0; idx < df->profile->max_state; idx++) {
+                if (chipinfo_min > df->profile->freq_table[idx])
+                        chipinfo_min = df->profile->freq_table[idx];
+                if (chipinfo_max < df->profile->freq_table[idx])
+                        chipinfo_max = df->profile->freq_table[idx];
+        }
+        mutex_unlock(&df->lock);
+
+        if (min)
+                *min = chipinfo_min;
+        if (max)
+                *max = chipinfo_max;
+        return 0;
+}
+
+int devfreq_set_limit(struct devfreq *df, unsigned long min, unsigned long max)
+{
+        int idx;
+        unsigned long chipinfo_min = ~0, chipinfo_max = 0;
+
+        if (!df || !df->profile->freq_table) {
+                pr_err("No devfreq or No table\n");
+                return -EINVAL;
+        }
+
+        if (chipinfo_min > chipinfo_max) {
+                for (idx = 0; idx < df->profile->max_state; idx++) {
+                        if (chipinfo_min > df->profile->freq_table[idx])
+                                chipinfo_min = df->profile->freq_table[idx];
+                        if (chipinfo_max < df->profile->freq_table[idx])
+                                chipinfo_max = df->profile->freq_table[idx];
+                }
+        }
+
+        if (min < chipinfo_min)
+                min = chipinfo_min;
+        if (max > chipinfo_max)
+                max = chipinfo_max;
+
+        if (min > max)
+                max = min;
+
+        pr_debug("min %lu max %lu, chip min %lu chip max %lu\n",
+                min, max, chipinfo_min, chipinfo_max);
+
+        mutex_lock(&df->lock);
+        df->min_freq = min;
+        df->max_freq = max;
+        update_devfreq(df);
+        mutex_unlock(&df->lock);
+        return 0;
+}
+#endif /* VENDOR_EDIT */
+
 /**
  * devfreq_get_freq_level() - Lookup freq_table for the frequency
  * @devfreq:	the devfreq instance
@@ -1030,6 +1102,10 @@ static ssize_t governor_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	mutex_lock(&df->event_lock);
+	if (df->dev_suspended) {
+		ret = -EINVAL;
+		goto gov_stop_out;
+	}
 	if (df->governor) {
 		ret = df->governor->event_handler(df, DEVFREQ_GOV_STOP, NULL);
 		if (ret) {
@@ -1143,14 +1219,16 @@ static ssize_t polling_interval_store(struct device *dev,
 	unsigned int value;
 	int ret;
 
-	if (!df->governor)
-		return -EINVAL;
-
 	ret = sscanf(buf, "%u", &value);
 	if (ret != 1)
 		return -EINVAL;
 
 	mutex_lock(&df->event_lock);
+	if (!df->governor || df->dev_suspended) {
+		dev_warn(dev, "device suspended, operation not allowed\n");
+		mutex_unlock(&df->event_lock);
+		return -EINVAL;
+	}
 	df->governor->event_handler(df, DEVFREQ_GOV_INTERVAL, &value);
 	ret = count;
 	mutex_unlock(&df->event_lock);
@@ -1172,6 +1250,11 @@ static ssize_t min_freq_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 
 	mutex_lock(&df->event_lock);
+	if (df->dev_suspended) {
+		dev_warn(dev, "device suspended, min freq not allowed\n");
+		mutex_unlock(&df->event_lock);
+		return -EINVAL;
+	}
 	mutex_lock(&df->lock);
 	max = df->max_freq;
 	if (value && max && value > max) {
@@ -1209,6 +1292,11 @@ static ssize_t max_freq_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 
 	mutex_lock(&df->event_lock);
+	if (df->dev_suspended) {
+		mutex_unlock(&df->event_lock);
+		dev_warn(dev, "device suspended, max freq not allowed\n");
+		return -EINVAL;
+	}
 	mutex_lock(&df->lock);
 	min = df->min_freq;
 	if (value && min && value < min) {
@@ -1224,7 +1312,13 @@ unlock:
 	mutex_unlock(&df->event_lock);
 	return ret;
 }
+
+#ifdef VENDOR_EDIT
+//huxiaokai@SRC.hypnus.2020-01-21. add support for hypnusd devbw feature
+static DEVICE_ATTR(min_freq, 0664, min_freq_show, min_freq_store);
+#else
 static DEVICE_ATTR_RW(min_freq);
+#endif
 
 static ssize_t max_freq_show(struct device *dev, struct device_attribute *attr,
 			     char *buf)
@@ -1233,7 +1327,13 @@ static ssize_t max_freq_show(struct device *dev, struct device_attribute *attr,
 
 	return sprintf(buf, "%lu\n", MIN(df->scaling_max_freq, df->max_freq));
 }
+
+#ifdef VENDOR_EDIT
+//huxiaokai@SRC.hypnus.2020-01-21. add support for hypnusd devbw feature
+static DEVICE_ATTR(max_freq, 0664, max_freq_show, max_freq_store);
+#else
 static DEVICE_ATTR_RW(max_freq);
+#endif
 
 static ssize_t available_frequencies_show(struct device *d,
 					  struct device_attribute *attr,

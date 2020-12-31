@@ -107,15 +107,38 @@ static int rtc_proc_show(struct seq_file *seq, void *offset)
 	return 0;
 }
 
+static int saupwk_rtc_proc_show(struct seq_file *seq, void *offset)
+{
+	int err;
+	struct rtc_device *rtc = seq->private;
+	//const struct rtc_class_ops *ops = rtc->ops;
+	//struct rtc_wkalrm alrm;
+	struct rtc_time tm;
+
+	err = rtc_read_time(rtc, &tm);
+	if (err == 0) {
+		seq_printf(seq,
+			   "%04d-%02d-%02d %02d:%02d:%02d\n",
+			   tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+			   tm.tm_hour, tm.tm_min, tm.tm_sec);
+	}
+
+	return 0;
+}
+
+
 void rtc_proc_add_device(struct rtc_device *rtc)
 {
-	if (is_rtc_hctosys(rtc))
-		proc_create_single_data("driver/rtc", 0, NULL, rtc_proc_show,
-				rtc);
+	if (is_rtc_hctosys(rtc)){
+		proc_create_single_data("driver/rtc", 0, NULL, rtc_proc_show, rtc);
+        proc_create_single_data("driver/saupwk_rtc", 0, NULL, saupwk_rtc_proc_show, rtc);
+    }
 }
 
 void rtc_proc_del_device(struct rtc_device *rtc)
 {
-	if (is_rtc_hctosys(rtc))
+	if (is_rtc_hctosys(rtc)){
 		remove_proc_entry("driver/rtc", NULL);
+        remove_proc_entry("driver/saupwk_rtc", NULL);
+    }
 }

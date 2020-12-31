@@ -123,6 +123,25 @@ static ssize_t show_max_cpus(const struct cluster_data *state, char *buf)
 	return snprintf(buf, PAGE_SIZE, "%u\n", state->max_cpus);
 }
 
+#ifdef VENDOR_EDIT
+//cuixiaogang@SRC.hypnus, 2019.05.20 add for hypnus-daemon
+int hypnus_set_min_max_cpus(unsigned int index, unsigned int min, unsigned int max)
+{
+        struct cluster_data *state;
+
+        if (index >= num_clusters)
+                return -EINVAL;
+
+        state = &cluster_state[index];
+
+        state->max_cpus = min(max, state->num_cpus);
+        state->min_cpus = min(min, state->max_cpus);
+        cpuset_next(state);
+        wake_up_core_ctl_thread(state);
+        return 0;
+}
+#endif /* VENDOR_EDIT */
+
 static ssize_t store_offline_delay_ms(struct cluster_data *state,
 					const char *buf, size_t count)
 {
@@ -769,13 +788,6 @@ static bool adjustment_possible(const struct cluster_data *cluster,
 						cluster->nr_isolated_cpus));
 }
 
-static bool need_all_cpus(const struct cluster_data *cluster)
-{
-
-	return (is_min_capacity_cpu(cluster->first_cpu) &&
-		sched_ravg_window < DEFAULT_SCHED_RAVG_WINDOW);
-}
-
 static bool eval_need(struct cluster_data *cluster)
 {
 	unsigned long flags;
@@ -791,7 +803,7 @@ static bool eval_need(struct cluster_data *cluster)
 
 	spin_lock_irqsave(&state_lock, flags);
 
-	if (cluster->boost || !cluster->enable || need_all_cpus(cluster)) {
+	if (cluster->boost || !cluster->enable) {
 		need_cpus = cluster->max_cpus;
 	} else {
 		cluster->active_cpus = get_active_cpu_count(cluster);

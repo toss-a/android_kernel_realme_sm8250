@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2009-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2019, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "%s: " fmt, __func__
@@ -21,6 +21,8 @@
 #include <soc/qcom/socinfo.h>
 #include <linux/soc/qcom/smem.h>
 #include <soc/qcom/boot_stats.h>
+
+#include <soc/oppo/oppo_project.h>
 
 #define BUILD_ID_LENGTH 32
 #define CHIP_ID_LENGTH 32
@@ -229,6 +231,12 @@ static union {
 /* max socinfo format version supported */
 #define MAX_SOCINFO_FORMAT SOCINFO_VERSION(0, 15)
 
+#ifdef VENDOR_EDIT
+/*xing.xiong@BSP.Kernel.Driver, 2019/11/04, Add for fake cpu id*/
+static char *fake_cpu_id = "SM8150";
+static char *real_cpu_id = "SM8250";
+#endif
+
 static struct msm_soc_info cpu_of_id[] = {
 	[0]  = {MSM_CPU_UNKNOWN, "Unknown CPU"},
 	/* 8960 IDs */
@@ -328,7 +336,6 @@ static struct msm_soc_info cpu_of_id[] = {
 
 	/* Lagoon ID */
 	[434] = {MSM_CPU_LAGOON, "LAGOON"},
-	[459] = {MSM_CPU_LAGOON, "LAGOON"},
 
 	/* Bengalp ID */
 	[445] = {MSM_CPU_BENGALP, "BENGALP"},
@@ -1602,6 +1609,14 @@ int __init socinfo_init(void)
 		pr_warn("New IDs added! ID => CPU mapping needs an update.\n");
 
 	cur_cpu = cpu_of_id[socinfo->v0_1.id].generic_soc_type;
+#ifdef VENDOR_EDIT
+/*xing.xiong@BSP.Kernel.Driver, 2019/11/04, Add for fake cpu id*/
+	if (is_confidential()) {
+		cpu_of_id[socinfo->v0_1.id].soc_id_string = fake_cpu_id;
+	} else {
+		cpu_of_id[socinfo->v0_1.id].soc_id_string = real_cpu_id;
+	}
+#endif
 	boot_stats_init();
 	socinfo_print();
 	arch_read_hardware_id = msm_read_hardware_id;

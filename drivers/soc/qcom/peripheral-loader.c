@@ -36,6 +36,11 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_msm_pil_event.h>
 
+#ifdef VENDOR_EDIT
+//Kaijia.Lin@PSW.MM.AudioDriver.SSR, 2019/11/07, Add for adsp/venus SSR dump
+#include <soc/oppo/oppo_kevent_feedback.h>
+#endif /* VENDOR_EDIT */
+
 #include "peripheral-loader.h"
 
 #define pil_err(desc, fmt, ...)						\
@@ -185,7 +190,7 @@ static struct md_ss_region __iomem *map_minidump_regions(struct md_ss_toc *toc,
 	if (!region_info)
 		return NULL;
 
-	pr_debug("Minidump : Segments in minidump 0x%x\n", num_segs);
+	pr_info("Minidump : Segments in minidump 0x%x\n", num_segs);
 
 	return region_info;
 }
@@ -282,7 +287,7 @@ static unsigned int prepare_minidump_segments(struct ramdump_segment *rd_segs,
 			offset = offset +
 				sizeof(region_info->region_base_address);
 			rd_segs->size = __raw_readl(offset);
-			pr_debug("Minidump : Dumping segment %s with address 0x%lx and size 0x%x\n",
+			pr_info("Minidump : Dumping segment %s with address 0x%lx and size 0x%x\n",
 				rd_segs->name, rd_segs->address,
 				(unsigned int)rd_segs->size);
 			rd_segs++;
@@ -413,6 +418,27 @@ setup_fail:
 	return ret;
 }
 
+#ifdef VENDOR_EDIT
+//Kaijia.Lin@PSW.MM.AudioDriver.SSR, 2019/11/07, Add for adsp/venus SSR dump
+#define CAUSENAME_SIZE 128
+unsigned int BKDRHash(char* str, unsigned int len)
+{
+	unsigned int seed = 131; /* 31 131 1313 13131 131313 etc.. */
+	unsigned int hash = 0;
+	unsigned int i    = 0;
+
+	if (str == NULL) {
+		return 0;
+	}
+
+	for(i = 0; i < len; str++, i++) {
+		hash = (hash * seed) + (*str);
+	}
+
+	return hash;
+}
+#endif /*VENDOR_EDIT*/
+
 /**
  * pil_do_ramdump() - Ramdump an image
  * @desc: descriptor from pil_desc_init()
@@ -429,16 +455,23 @@ int pil_do_ramdump(struct pil_desc *desc,
 	struct pil_seg *seg;
 	int count = 0, ret;
 
+#ifdef VENDOR_EDIT
+//Kaijia.Lin@PSW.MM.AudioDriver.SSR, 2019/11/07, Add for adsp/venus SSR dump
+	unsigned char payload[100] = "";
+	unsigned int hashid;
+	char strHashSource[CAUSENAME_SIZE];
+#endif /*VENDOR_EDIT*/
+
 	if (desc->minidump_ss) {
-		pr_debug("Minidump : md_ss_toc->md_ss_toc_init is 0x%x\n",
+		pr_info("Minidump : md_ss_toc->md_ss_toc_init is 0x%x\n",
 			(unsigned int)desc->minidump_ss->md_ss_toc_init);
-		pr_debug("Minidump : md_ss_toc->md_ss_enable_status is 0x%x\n",
+		pr_info("Minidump : md_ss_toc->md_ss_enable_status is 0x%x\n",
 			(unsigned int)desc->minidump_ss->md_ss_enable_status);
-		pr_debug("Minidump : md_ss_toc->encryption_status is 0x%x\n",
+		pr_info("Minidump : md_ss_toc->encryption_status is 0x%x\n",
 			(unsigned int)desc->minidump_ss->encryption_status);
-		pr_debug("Minidump : md_ss_toc->ss_region_count is 0x%x\n",
+		pr_info("Minidump : md_ss_toc->ss_region_count is 0x%x\n",
 			(unsigned int)desc->minidump_ss->ss_region_count);
-		pr_debug("Minidump : md_ss_toc->md_ss_smem_regions_baseptr is 0x%x\n",
+		pr_info("Minidump : md_ss_toc->md_ss_smem_regions_baseptr is 0x%x\n",
 			(unsigned int)
 			desc->minidump_ss->md_ss_smem_regions_baseptr);
 		/**
@@ -450,16 +483,16 @@ int pil_do_ramdump(struct pil_desc *desc,
 			(desc->minidump_ss->md_ss_enable_status ==
 				MD_SS_ENABLED)) {
 			if (desc->minidump_ss->encryption_status ==
-			    MD_SS_ENCR_DONE) {
-				pr_debug("Dumping Minidump for %s\n",
+				MD_SS_ENCR_DONE) {
+				pr_info("Dumping Minidump for %s\n",
 					desc->name);
 				return pil_do_minidump(desc, minidump_dev);
 			}
-			pr_debug("Minidump aborted for %s\n", desc->name);
+			pr_info("Minidump aborted for %s\n", desc->name);
 			return -EINVAL;
 		}
 	}
-	pr_debug("Continuing with full SSR dump for %s\n", desc->name);
+	pr_info("Continuing with full SSR dump for %s\n", desc->name);
 	list_for_each_entry(seg, &priv->segs, list)
 		count++;
 
@@ -484,6 +517,23 @@ int pil_do_ramdump(struct pil_desc *desc,
 	if (ret)
 		pil_err(desc, "%s: Ramdump collection failed for subsys %s rc:%d\n",
 				__func__, desc->name, ret);
+
+#ifdef VENDOR_EDIT
+//Kaijia.Lin@PSW.MM.AudioDriver.SSR, 2019/11/07, Add for adsp/venus SSR dump
+	if(strlen(desc->name) > 0 && (strncmp(desc->name,"venus",strlen(desc->name)) == 0)) {
+		strncpy(strHashSource,desc->name,strlen(desc->name));
+		hashid = BKDRHash(strHashSource,strlen(strHashSource));
+		scnprintf(payload, sizeof(payload), "NULL$$EventID@@%d$$EventData@@%d$$PackageName@@%s$$fid@@%u",
+			OPPO_MM_DIRVER_FB_EVENT_ID_VIDEO_DUMP, ret, desc->name, hashid);
+		upload_mm_kevent_feedback_data(OPPO_MM_DIRVER_FB_EVENT_MODULE_VIDEO,payload);
+	} else if(strlen(desc->name) > 0 && (strncmp(desc->name,"adsp",strlen(desc->name)) == 0)) {
+		strncpy(strHashSource,desc->name,strlen(desc->name));
+		hashid = BKDRHash(strHashSource,strlen(strHashSource));
+		scnprintf(payload, sizeof(payload), "NULL$$EventID@@%d$$EventData@@%d$$PackageName@@%s$$fid@@%u",
+			OPPO_MM_DIRVER_FB_EVENT_ID_ADSP_RESET, ret, desc->name, hashid);
+		upload_mm_kevent_feedback_data(OPPO_MM_DIRVER_FB_EVENT_MODULE_AUDIO,payload);
+	}
+#endif /* VENDOR_EDIT */
 
 	if (desc->subsys_vmid > 0)
 		ret = pil_assign_mem_to_subsys(desc, priv->region_start,
@@ -1057,7 +1107,7 @@ static int pil_parse_devicetree(struct pil_desc *desc)
 
 	if (of_property_read_u32(ofnode, "qcom,mem-protect-id",
 					&desc->subsys_vmid))
-		pr_debug("Unable to read the addr-protect-id for %s\n",
+		pr_info("Unable to read the addr-protect-id for %s\n",
 					desc->name);
 
 	if (desc->ops->proxy_unvote &&
@@ -1469,7 +1519,7 @@ static int collect_aux_minidump_ids(struct pil_desc *desc)
 					 p, id) {
 			desc->aux_minidump_ids[i] = id;
 			aux_toc_addr = &g_md_toc->md_ss_toc[id];
-			pr_debug("Minidump: aux_toc_addr is %pa and id: %d\n",
+			pr_info("Minidump: aux_toc_addr is %pa and id: %d\n",
 				 &aux_toc_addr, id);
 			memcpy(&desc->aux_minidump[i], &aux_toc_addr,
 			       sizeof(aux_toc_addr));
@@ -1525,7 +1575,7 @@ int pil_desc_init(struct pil_desc *desc)
 	else {
 		if (g_md_toc && g_md_toc->md_toc_init == true) {
 			ss_toc_addr = &g_md_toc->md_ss_toc[desc->minidump_id];
-			pr_debug("Minidump : ss_toc_addr for ss is %pa and desc->minidump_id is %d\n",
+			pr_info("Minidump : ss_toc_addr for ss is %pa and desc->minidump_id is %d\n",
 				&ss_toc_addr, desc->minidump_id);
 			memcpy(&desc->minidump_ss, &ss_toc_addr,
 			       sizeof(ss_toc_addr));
@@ -1652,7 +1702,7 @@ static int __init msm_pil_init(void)
 	/* Get Global minidump ToC*/
 	g_md_toc = qcom_smem_get(QCOM_SMEM_HOST_ANY, SBL_MINIDUMP_SMEM_ID,
 				 &size);
-	pr_debug("Minidump: g_md_toc is %pa\n", &g_md_toc);
+	pr_info("Minidump: g_md_toc is %pa\n", &g_md_toc);
 	if (PTR_ERR(g_md_toc) == -EPROBE_DEFER) {
 		pr_err("SMEM is not initialized.\n");
 		return -EPROBE_DEFER;

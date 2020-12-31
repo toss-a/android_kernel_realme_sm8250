@@ -284,7 +284,12 @@ struct cvp_session_event {
 
 struct msm_cvp_core {
 	struct list_head list;
+#ifdef VENDOR_EDIT
+/*tangruiye@Camera.Drv, 2020/02/12, fix CVP issue case:04448418 */
 	struct mutex lock, power_lock;
+#else
+	struct mutex lock;
+#endif
 	int id;
 	dev_t dev_num;
 	struct cdev cdev;

@@ -387,7 +387,7 @@ static void print_unreferenced(struct seq_file *seq,
 
 	for (i = 0; i < object->trace_len; i++) {
 		void *ptr = (void *)object->trace[i];
-		seq_printf(seq, "    [<%p>] %pS\n", ptr, ptr);
+		seq_printf(seq, "    [<%px>] %pS\n", ptr, ptr);
 	}
 }
 

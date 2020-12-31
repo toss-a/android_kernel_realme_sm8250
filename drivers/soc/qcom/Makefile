@@ -24,7 +24,6 @@ obj-$(CONFIG_QCOM_IPCC) += qcom_ipcc.o
 obj-$(CONFIG_QCOM_LLCC) += llcc-slice.o
 obj-$(CONFIG_QCOM_KONA_LLCC) += llcc-kona.o
 obj-$(CONFIG_QCOM_LITO_LLCC) += llcc-lito.o
-obj-$(CONFIG_QCOM_LAGOON_LLCC) += llcc-lagoon.o
 obj-$(CONFIG_QCOM_LLCC_PERFMON) += llcc_perfmon.o
 obj-$(CONFIG_QCOM_APR) += apr.o
 obj-$(CONFIG_QCOM_SECURE_BUFFER) += secure_buffer.o
@@ -62,7 +61,12 @@ ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 endif
 obj-$(CONFIG_QCOM_EUD) += eud.o
 obj-$(CONFIG_SOC_BUS) += socinfo.o
-obj-$(CONFIG_QCOM_WATCHDOG_V2) += watchdog_v2.o
+#ifndef VENDOR_EDIT
+#Fuchun.Liao@BSP.CHG.Basic 2019/09/23 modify for oppo watchdog
+#obj-$(CONFIG_QCOM_WATCHDOG_V2) += watchdog_v2.o
+#else
+obj-$(CONFIG_QCOM_WATCHDOG_V2) += watchdog_v2.o oppo_watchdog_util.o
+#endif /* VENDOR_EDIT */
 obj-$(CONFIG_QCOM_SDM845_LLCC) += llcc-sdm845.o
 CFLAGS_rpmh-rsc.o := -I$(src)
 obj-$(CONFIG_QCOM_BUS_SCALING) += msm_bus/
@@ -84,6 +88,10 @@ ifdef CONFIG_QCOM_RPMH
 else
        obj-$(CONFIG_QTI_RPM_STATS_LOG) += rpm_master_stat.o
 endif
+#ifdef VENDOR_EDIT
+#yunqing.zeng@bsp.power.basic 2019/11/30 modify for support buffer of modem subsystem sleep info
+obj-$(CONFIG_RPMH_MODEM_SLEEPINFO_BUFFER) += rpmh_modem_sleepinfo.o
+#endif
 obj-$(CONFIG_QTI_RPM_STATS_LOG) += rpm_stats.o
 obj-$(CONFIG_QCOM_MEM_OFFLINE) += mem-offline.o
 obj-$(CONFIG_QTI_DDR_STATS_LOG) += ddr_stats.o
@@ -98,4 +106,3 @@ obj-$(CONFIG_ICNSS) += icnss.o
 obj-$(CONFIG_ICNSS_QMI) += icnss_qmi.o wlan_firmware_service_v01.o
 obj-$(CONFIG_RMNET_CTL) += rmnet_ctl/
 obj-$(CONFIG_QCOM_CX_IPEAK) += cx_ipeak.o
-obj-$(CONFIG_ICNSS2) += icnss2/

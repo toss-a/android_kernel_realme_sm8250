@@ -29,6 +29,10 @@
 #include <linux/task_io_accounting.h>
 #include <linux/rseq.h>
 
+#ifdef VENDOR_EDIT
+/* Fuchun.Liao@BSP.CHG.Basic 2019/09/23 modify for oppo wdog */
+extern void show_regs(struct pt_regs *);
+#endif /* VENDOR_EDIT */
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
 struct backing_dev_info;
@@ -222,6 +226,39 @@ enum fps {
 		raw_spin_unlock_irqrestore(&current->pi_lock, flags);	\
 	} while (0)
 
+#endif
+
+#ifdef VENDOR_EDIT
+extern int sysctl_uifirst_enabled;
+extern int sysctl_launcher_boost_enabled;
+#endif /* VENDOR_EDIT */
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+// Liujie.Xie@TECH.Kernel.Sched, 2019/08/29, add for stuck monitor
+struct uifirst_d_state {
+    u64 iowait_ns;
+    u64 downread_ns;
+    u64 downwrite_ns;
+    u64 mutex_ns;
+    u64 other_ns;
+    int cnt;
+};
+
+struct uifirst_s_state{
+    u64 binder_ns;
+    u64 epoll_ns;
+    u64 futex_ns;
+    u64 other_ns;
+    int cnt;
+};
+
+struct oppo_uifirst_monitor_info {
+    u64 runnable_state;
+    u64 ltt_running_state; /* ns */
+    u64 big_running_state; /* ns */
+    struct uifirst_d_state d_state;
+    struct uifirst_s_state s_state;
+};
 #endif
 
 /* Task command name length: */
@@ -557,6 +594,27 @@ struct cpu_cycle_counter_cb {
 
 DECLARE_PER_CPU_READ_MOSTLY(int, sched_load_boost);
 
+#ifdef CONFIG_SMP
+#ifdef VENDOR_EDIT
+//wangmengmeng@swdp.shanghai, 2019/6/20, export some symbol
+extern unsigned long sched_get_capacity_orig(int cpu);
+extern unsigned int sched_get_cpu_util(int cpu);
+#endif
+#else
+#ifdef VENDOR_EDIT
+//wangmengmeng@swdp.shanghai, 2019/6/20, export some symbol
+static inline unsigned long sched_get_capacity_orig(int cpu)
+{
+	return 0;
+}
+
+static inline unsigned int sched_get_cpu_util(int cpu)
+{
+	return 0;
+}
+#endif
+#endif
+
 #ifdef CONFIG_SCHED_WALT
 extern void sched_exit(struct task_struct *p);
 extern int register_cpu_cycle_counter_cb(struct cpu_cycle_counter_cb *cb);
@@ -570,6 +628,14 @@ extern void sched_update_cpu_freq_min_max(const cpumask_t *cpus, u32 fmin,
 extern int sched_set_boost(int enable);
 extern void free_task_load_ptrs(struct task_struct *p);
 extern void sched_set_refresh_rate(enum fps fps);
+
+#ifdef VENDOR_EDIT
+//cuixiaogang@swdp.shanghai, 2018/3/18, export some symbol
+extern int sched_boost(void);
+extern int sched_set_updown_migrate(unsigned int *up_pct, unsigned int *down_pct);
+extern int sched_get_updown_migrate(unsigned int *up_pct, unsigned int *down_pct);
+void sched_boost_disable_all(void);
+#endif /* VENDOR_EDIT */
 
 #define RAVG_HIST_SIZE_MAX 5
 #define NUM_BUSY_BUCKETS 10
@@ -752,6 +818,16 @@ enum perf_event_task_context {
 struct wake_q_node {
 	struct wake_q_node *next;
 };
+
+#if defined(VENDOR_EDIT) && defined(CONFIG_PROCESS_RECLAIM_ENHANCE)
+/* Kui.Zhang@TEC.Kernel.Performance, 2019/03/04
+ * Record process reclaim memory information
+ */
+union reclaim_limit {
+	unsigned long stop_jiffies;
+	unsigned long stop_scan_addr;
+};
+#endif
 
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
@@ -1373,7 +1449,12 @@ struct task_struct {
 #ifdef CONFIG_BLK_CGROUP
 	struct request_queue		*throttle_queue;
 #endif
-
+#if defined(VENDOR_EDIT) && defined(CONFIG_PROCESS_RECLAIM)
+	/* Kui.Zhang@TEC.Kernel.Performance, 2019/03/04
+	* Record process reclaim infor
+	*/
+	union reclaim_limit reclaim;
+#endif
 #ifdef CONFIG_UPROBES
 	struct uprobe_task		*utask;
 #endif
@@ -1402,7 +1483,20 @@ struct task_struct {
 	/* Used by LSM modules for access restriction: */
 	void				*security;
 #endif
-
+#ifdef VENDOR_EDIT
+    int static_ux;
+#endif /* VENDOR_EDIT */
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+// Liujie.Xie@TECH.Kernel.Sched, 2019/08/29, add for stuck monitor
+    int stuck_trace;
+    struct oppo_uifirst_monitor_info oppo_stuck_info;
+    unsigned in_mutex:1;
+    unsigned in_downread:1;
+    unsigned in_downwrite:1;
+    unsigned in_futex:1;
+    unsigned in_binder:1;
+    unsigned in_epoll:1;
+#endif
 	/*
 	 * New fields for task_struct should be added above here, so that
 	 * they are included in the randomized portion of task_struct.
@@ -1607,6 +1701,12 @@ extern struct pid *cad_pid;
 #define PF_MUTEX_TESTER		0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP		0x40000000	/* Freezer should not count it as freezable */
 #define PF_SUSPEND_TASK		0x80000000      /* This thread called freeze_processes() and should not be frozen */
+#if defined(VENDOR_EDIT) && defined(CONFIG_PROCESS_RECLAIM)
+/* Kui.Zhang@PSW.BSP.Kernel.Performance, 2018-12-25, flag that current task is process reclaimer */
+#define PF_RECLAIM_SHRINK	0x02000000	/* Flag the task is memory compresser */
+
+#define current_is_reclaimer() (current->flags & PF_RECLAIM_SHRINK)
+#endif
 
 /*
  * Only the _current_ task can read/write to tsk->flags, but other

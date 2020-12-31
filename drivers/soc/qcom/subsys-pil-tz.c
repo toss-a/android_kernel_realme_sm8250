@@ -795,6 +795,12 @@ static struct pil_reset_ops pil_ops_trusted = {
 	.deinit_image = pil_deinit_image_trusted,
 };
 
+#ifdef VENDOR_EDIT
+//Yajie.chen@Tech.BSP.Sensor,2019/10/18
+//Add for slpi subsystem crash monitor
+extern void slpi_crash_reason_set(char * buf);
+#endif
+
 static void log_failure_reason(const struct pil_tz_data *d)
 {
 	size_t size;
@@ -817,6 +823,14 @@ static void log_failure_reason(const struct pil_tz_data *d)
 
 	strlcpy(reason, smem_reason, min(size, (size_t)MAX_SSR_REASON_LEN));
 	pr_err("%s subsystem failure reason: %s.\n", name, reason);
+    #ifdef VENDOR_EDIT
+    //Yajie.chen@Tech.BSP.Sensor,2019/10/18
+    //Add for slpi subsystem crash monitor
+    if (!strncmp(name, "slpi", 4)) {
+        slpi_crash_reason_set(reason);
+        pr_err("oppo debug modem subsystem failure reason: %s.\n", reason);
+    }
+    #endif
 }
 
 static int subsys_shutdown(const struct subsys_desc *subsys, bool force_stop)

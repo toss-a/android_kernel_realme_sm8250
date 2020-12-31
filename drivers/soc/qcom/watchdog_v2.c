@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -28,7 +28,10 @@
 #include <linux/sched/clock.h>
 #include <linux/cpumask.h>
 #include <uapi/linux/sched/types.h>
-
+#ifdef VENDOR_EDIT
+/*fanhui@PhoneSW.BSP, 2016-06-22, use self-defined utils*/
+#include "oppo_watchdog_util.h"
+#endif
 #define MODULE_NAME "msm_watchdog"
 #define WDT0_ACCSCSSNBARK_INT 0
 #define TCSR_WDT_CFG	0x30
@@ -49,8 +52,12 @@
 #define MAX_CPU_CTX_SIZE	2048
 
 static struct msm_watchdog_data *wdog_data;
-
+#ifndef VENDOR_EDIT
+/*fanhui@PhoneSW.BSP, 2016-06-22, use self-defined utils*/
 static int cpu_idle_pc_state[NR_CPUS];
+#else
+int cpu_idle_pc_state[NR_CPUS];
+#endif
 
 /*
  * user_pet_enable:
@@ -379,13 +386,26 @@ static void keep_alive_response(void *info)
  * If this function does not return, it implies one of the
  * other cpu's is not responsive.
  */
+#ifdef VENDOR_EDIT
+/* Fuchun.Liao@BSP.CHG.Basic 2018/09/26 add for debug cpu hang */
+static int wdog_cpu = 0;
+#endif /* VENDOR_EDIT */
 static void ping_other_cpus(struct msm_watchdog_data *wdog_dd)
 {
+#ifndef VENDOR_EDIT
+/* Fuchun.Liao@BSP.CHG.Basic 2018/09/26 add for debug cpu hang */
 	int cpu;
-
+#endif /* VENDOR_EDIT */
+#ifdef VENDOR_EDIT
+/* fanhui@PhoneSW.BSP, 2016/05/26, print more info on pet watchdog */
+	cpumask_t mask;
+	get_cpu_ping_mask(&mask);
+#endif /*VENDOR_EDIT*/
 	cpumask_clear(&wdog_dd->alive_mask);
 	/* Make sure alive mask is cleared and set in order */
 	smp_mb();
+#ifndef VENDOR_EDIT
+/* fanhui@PhoneSW.BSP, 2016/05/26, only ping cpu need ping */
 	for_each_cpu(cpu, cpu_online_mask) {
 		if (!cpu_idle_pc_state[cpu] && !cpu_isolated(cpu)) {
 			wdog_dd->ping_start[cpu] = sched_clock();
@@ -393,6 +413,15 @@ static void ping_other_cpus(struct msm_watchdog_data *wdog_dd)
 						 wdog_dd, 1);
 		}
 	}
+#else
+	for_each_cpu(wdog_cpu, &mask) {
+		if (!cpu_idle_pc_state[wdog_cpu] && !cpu_isolated(wdog_cpu)) {
+			wdog_dd->ping_start[wdog_cpu] = sched_clock();
+			smp_call_function_single(wdog_cpu, keep_alive_response,
+						 wdog_dd, 1);
+		}
+	}
+#endif /* VENDOR_EDIT */
 }
 
 static void pet_task_wakeup(struct timer_list *t)
@@ -438,6 +467,10 @@ static __ref int watchdog_kthread(void *arg)
 			delay_time = msecs_to_jiffies(wdog_dd->pet_time);
 			pet_watchdog(wdog_dd);
 		}
+#ifdef VENDOR_EDIT
+/*fanhui@PhoneSW.BSP, 2016-06-23, reset reocery_tried*/
+		reset_recovery_tried();
+#endif
 		/* Check again before scheduling
 		 * Could have been changed on other cpu
 		 */
@@ -535,10 +568,29 @@ static irqreturn_t wdog_bark_handler(int irq, void *dev_id)
 	nanosec_rem = do_div(wdog_dd->last_pet, 1000000000);
 	dev_info(wdog_dd->dev, "Watchdog last pet at %lu.%06lu\n",
 			(unsigned long) wdog_dd->last_pet, nanosec_rem / 1000);
-	if (wdog_dd->do_ipi_ping)
+	if (wdog_dd->do_ipi_ping) {
 		dump_cpu_alive_mask(wdog_dd);
+#ifdef VENDOR_EDIT
+/* fanhui@PhoneSW.BSP, 2016/04/22, print online cpu */
+		dump_cpu_online_mask();
+#endif
+	}
+#ifdef VENDOR_EDIT
+/* fanhui@PhoneSW.BSP, 2016/01/20, print more info about cpu the wdog on */
+	if (try_to_recover_pending(wdog_dd->watchdog_task)) {
+		pet_watchdog(wdog_dd);
+		return IRQ_HANDLED;
+	}
 
+	print_smp_call_cpu();
+	dump_wdog_cpu(wdog_dd->watchdog_task);
+#endif
+#ifdef VENDOR_EDIT
+/* fanhui@PhoneSW.BSP, 2016/01/20, delete trigger wdog bite, panic will trigger wdog if in dload mode*/
+	panic("Handle a watchdog bite! - Falling back to kernel panic!");
+#else
 	msm_trigger_wdog_bite();
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -760,9 +812,16 @@ static int msm_watchdog_probe(struct platform_device *pdev)
 	md_entry.virt_addr = (uintptr_t)wdog_dd;
 	md_entry.phys_addr = virt_to_phys(wdog_dd);
 	md_entry.size = sizeof(*wdog_dd);
-	md_entry.id = MINIDUMP_DEFAULT_ID;
 	if (msm_minidump_add_region(&md_entry))
 		pr_info("Failed to add Watchdog data in Minidump\n");
+
+#ifdef VENDOR_EDIT
+        /*zhye@BSP.Kernel.Debug, 2019/06/19, Add for init oppo watch dog log, checklist 64*/
+	ret = init_oppo_watchlog();
+    if (ret < 0) {
+    	pr_info("Failed to init oppo watchlog");
+    }
+#endif
 
 	return 0;
 err:

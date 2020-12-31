@@ -585,6 +585,14 @@ config TEST_IRQ_REQUESTER
 
 	  If in doubt, say N.
 
+config OPPO_RF_CABLE_MONITOR
+	bool "OPPO rf cable monitor system"
+	depends on OF
+	select PINMUX
+	default n
+	help
+	  Say Y here to enable OPPO rf cable monitor system support
+
 config WIGIG_SENSING_SPI
 	tristate "Sensing over 60GHz using wil6210 / SPI bus"
 	depends on SPI && WIL6210
@@ -595,14 +603,6 @@ config WIGIG_SENSING_SPI
 	  operates over 60GHz frequency band, using low power SPI interface.
 	  The output of the driver is CIRs (Channel Impulse Response) which
 	  must be processed in user space in order to get meaningful results.
-
-config QTI_XR_SMRTVWR_MISC
-	tristate "QTI XR Reference device Misc driver support"
-	help
-	  This driver supports the misc chips in XR Reference devices
-	  such as NDI controller chip, Power up Sensor rails etc. Note: This
-	  driver initializes gpios, enables/disables LDOs that are part of
-	  XR standalone reference device.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
@@ -618,6 +618,13 @@ source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/ocxl/Kconfig"
 source "drivers/misc/cardreader/Kconfig"
+#ifdef VENDOR_EDIT//Fanhong.Kong@ProDrv.CHG,add 2018/10/25 for vib aw8697
+source "drivers/misc/aw8697_haptic/Kconfig"
+#endif
+#ifdef VENDOR_EDIT
+#Qicai.Gu@PSW.BSP.TP, 2016/06/22, Add for support press sensor
+source "drivers/misc/cs_press/Kconfig"
+#endif /* V
 endmenu
 
 config OKL4_USER_VIPC

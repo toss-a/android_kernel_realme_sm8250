@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/mutex.h>
@@ -15,6 +15,8 @@
 #include "../ipa_rm_i.h"
 
 #define IPA_USB_DEV_READY_TIMEOUT_MSEC 10000
+
+#define IPA_HOLB_TMR_EN 0x1
 
 /* GSI channels weights */
 #define IPA_USB_DL_CHAN_LOW_WEIGHT 0x5
@@ -1595,7 +1597,7 @@ static int ipa3_usb_xdci_connect_internal(
 		result = ipa_mpm_mhip_xdci_pipe_enable(params->teth_prot);
 		if (result) {
 			IPA_USB_ERR("failed to enable MHIP UL channel\n");
-			goto connect_fail;
+			goto connect_ul_fail;
 		}
 	}
 
@@ -1650,7 +1652,6 @@ connect_dl_fail:
 connect_ul_fail:
 	if (ipa3_is_mhip_offload_enabled())
 		ipa_mpm_mhip_xdci_pipe_disable(params->teth_prot);
-connect_fail:
 	ipa_pm_deactivate_sync(
 			ipa3_usb_ctx->ttype_ctx[ttype].pm_ctx.hdl);
 
