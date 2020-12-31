@@ -1076,7 +1076,6 @@ static const struct file_operations proc_iowait_hung_fops = {
 };
 
 /******  stuck info read  ******/
-// Liujie.Xie@TECH.Kernel.Sched, 2019/08/29, add for stuck monitor
 /* warning: different project with different setting of LTT_NUM (small core number) */
 #define LTT_NUM (4)
 void update_stuck_trace_info(struct task_struct *tsk, int trace_type, unsigned int cpu, u64 delta) {
