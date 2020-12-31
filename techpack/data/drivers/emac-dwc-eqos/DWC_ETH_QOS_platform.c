@@ -899,16 +899,6 @@ static int DWC_ETH_QOS_get_dts_config(struct platform_device *pdev)
 		dwc_eth_qos_res_data.is_pinctrl_names = true;
 		EMACDBG("qcom,pinctrl-names present\n");
 	}
-	dwc_eth_qos_res_data.phy_addr = -1;
-	if (of_property_read_bool(pdev->dev.of_node, "emac-phy-addr")) {
-		ret = of_property_read_u32(pdev->dev.of_node, "emac-phy-addr",
-			&dwc_eth_qos_res_data.phy_addr);
-		if (ret) {
-			EMACINFO("Pphy_addr not specified, using dynamic phy detection\n");
-			dwc_eth_qos_res_data.phy_addr = -1;
-		}
-		EMACINFO("phy_addr = %d\n", dwc_eth_qos_res_data.phy_addr);
-	}
 
 	return ret;
 
@@ -1480,8 +1470,6 @@ static int DWC_ETH_QOS_init_gpios(struct device *dev)
 
 		gpio_set_value(dwc_eth_qos_res_data.gpio_phy_reset, PHY_RESET_GPIO_HIGH);
 		EMACDBG("PHY is out of reset successfully\n");
-		/* Add delay of 50ms so that phy should get sufficient time*/
-		mdelay(50);
 	}
 
 	return ret;
@@ -1526,10 +1514,8 @@ int DWC_ETH_QOS_add_ipv6addr(struct DWC_ETH_QOS_prv_data *pdata)
 	struct net *net = dev_net(pdata->dev);
 
 	EMACDBG("\n");
-	if (!net || !net->genl_sock || !net->genl_sock->sk_socket) {
+	if (!net || !net->genl_sock || !net->genl_sock->sk_socket)
 		EMACERR("Sock is null, unable to assign ipv6 address\n");
-		return -EFAULT;
-	}
 
 	if (!net->ipv6.devconf_dflt) {
 		EMACDBG("ipv6.devconf_dflt is null, schedule wq\n");
@@ -1570,10 +1556,8 @@ int DWC_ETH_QOS_add_ipaddr(struct DWC_ETH_QOS_prv_data *pdata)
 	struct sockaddr_in *sin = (void *) &ir.ifr_ifru.ifru_addr;
 	struct net *net = dev_net(pdata->dev);
 
-	if (!net || !net->genl_sock || !net->genl_sock->sk_socket) {
+	if (!net || !net->genl_sock || !net->genl_sock->sk_socket)
 		EMACERR("Sock is null, unable to assign ipv4 address\n");
-		return -EFAULT;
-	}
 
 	/*For valid Ipv4 address*/
 	memset(&ir, 0, sizeof(ir));
@@ -1851,8 +1835,6 @@ static int DWC_ETH_QOS_configure_netdevice(struct platform_device *pdev)
 		pdata->default_ptp_clock = DWC_ETH_QOS_PTP_CLOCK_96;
 	else if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_3_2 )
 		pdata->default_ptp_clock = DWC_ETH_QOS_PTP_CLOCK_62_5;
-	else
-		pdata->default_ptp_clock = DWC_ETH_QOS_DEFAULT_PTP_CLOCK;
 
 #ifdef DWC_ETH_QOS_CONFIG_PTP
 	DWC_ETH_QOS_ptp_init(pdata);
@@ -2158,11 +2140,6 @@ static int DWC_ETH_QOS_probe(struct platform_device *pdev)
 			goto err_out_dev_failed;
 	}
 	EMACDBG("<-- DWC_ETH_QOS_probe\n");
-
-#if defined DWC_ETH_QOS_BUILTIN && defined CONFIG_MSM_BOOT_TIME_MARKER
-	place_marker("M - Ethernet probe end");
-#endif
-
 	return ret;
 
  err_out_dev_failed:
@@ -2248,19 +2225,16 @@ int DWC_ETH_QOS_remove(struct platform_device *pdev)
 	if (pdata->phy_irq != 0) {
 		free_irq(pdata->phy_irq, pdata);
 		pdata->phy_irq = 0;
-        pdata->phy_irq_enabled = false;
 	}
 
 	if (dwc_eth_qos_res_data.emac_hw_version_type == EMAC_HW_v2_3_1) {
-		if (dwc_eth_qos_res_data.ptp_pps_avb_class_a_irq != 0 && pdata->en_ptp_pps_avb_class_a_irq) {
+		if (dwc_eth_qos_res_data.ptp_pps_avb_class_a_irq != 0) {
 			free_irq(dwc_eth_qos_res_data.ptp_pps_avb_class_a_irq, pdata);
 			dwc_eth_qos_res_data.ptp_pps_avb_class_a_irq = 0;
-			pdata->en_ptp_pps_avb_class_a_irq = false;
 		}
-		if (dwc_eth_qos_res_data.ptp_pps_avb_class_b_irq != 0 && pdata->en_ptp_pps_avb_class_b_irq) {
+		if (dwc_eth_qos_res_data.ptp_pps_avb_class_b_irq != 0) {
 			free_irq(dwc_eth_qos_res_data.ptp_pps_avb_class_b_irq, pdata);
 			dwc_eth_qos_res_data.ptp_pps_avb_class_b_irq = 0;
-			pdata->en_ptp_pps_avb_class_b_irq = false;
 		}
 	}
 
@@ -2555,23 +2529,19 @@ static int DWC_ETH_QOS_hib_restore(struct device *dev) {
 	/* issue software reset to device */
 	pdata->hw_if.exit();
 
+	/* Bypass PHYLIB for TBI, RTBI and SGMII interface */
+	if (pdata->hw_feat.sma_sel == 1) {
+		ret = DWC_ETH_QOS_mdio_register(pdata->dev);
+		if (ret < 0) {
+			EMACERR("MDIO bus (id %d) registration failed\n",
+					  pdata->bus_id);
+			return ret;
+		}
+	}
+
 	if (!(pdata->dev->flags & IFF_UP)) {
 		pdata->dev->netdev_ops->ndo_open(pdata->dev);
 		pdata->dev->flags |= IFF_UP;
-	}
-
-	if (!(pdata->phydev->drv->config_intr &&
-		!pdata->phydev->drv->config_intr(pdata->phydev))){
-		EMACERR("Failed to configure PHY interrupts");
-		BUG();
-	}
-
-	if (pdata->phy_intr_en && pdata->phy_wol_supported ){
-		struct ethtool_wolinfo wol = {
-			.cmd = ETHTOOL_SWOL,
-			.wolopts=pdata->phy_wol_wolopts,
-		};
-		phy_ethtool_set_wol(pdata->phydev, &wol);
 	}
 
 	EMACINFO("end\n");
@@ -2592,6 +2562,9 @@ static int DWC_ETH_QOS_hib_freeze(struct device *dev) {
 		pdata->dev->flags &= ~IFF_UP;
 	}
 
+	if (pdata->hw_feat.sma_sel == 1)
+		DWC_ETH_QOS_mdio_unregister(pdata->dev);
+
 #ifdef DWC_ETH_QOS_CONFIG_PTP
 	DWC_ETH_QOS_ptp_remove(pdata);
 #endif /* end of DWC_ETH_QOS_CONFIG_PTP */
@@ -2603,9 +2576,6 @@ static int DWC_ETH_QOS_hib_freeze(struct device *dev) {
 	DWC_ETH_QOS_free_gpios();
 
 	EMACINFO("end\n");
-#ifdef CONFIG_MSM_BOOT_TIME_MARKER
-	pdata->print_kpi = 0;
-#endif
 
 	return ret;
 }
