@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/of_platform.h>
@@ -38,7 +38,6 @@ struct bolero_clk_rsc {
 	int reg_seq_en_cnt;
 	int va_tx_clk_cnt;
 	bool dev_up;
-	bool dev_up_gfmux;
 	u32 num_fs_reg;
 	u32 *fs_gen_seq;
 	int default_clk_id[MAX_CLK];
@@ -66,14 +65,10 @@ static int bolero_clk_rsc_cb(struct device *dev, u16 event)
 	}
 
 	mutex_lock(&priv->rsc_clk_lock);
-	if (event == BOLERO_MACRO_EVT_SSR_UP) {
+	if (event == BOLERO_MACRO_EVT_SSR_UP)
 		priv->dev_up = true;
-	} else if (event == BOLERO_MACRO_EVT_SSR_DOWN) {
+	else if (event == BOLERO_MACRO_EVT_SSR_DOWN)
 		priv->dev_up = false;
-		priv->dev_up_gfmux = false;
-	} else if (event == BOLERO_MACRO_EVT_SSR_GFMUX_UP) {
-		priv->dev_up_gfmux = true;
-	}
 	mutex_unlock(&priv->rsc_clk_lock);
 
 	return 0;
@@ -255,13 +250,10 @@ static int bolero_clk_rsc_mux1_clk_request(struct bolero_clk_rsc *priv,
 
 	if (enable) {
 		if (priv->clk_cnt[clk_id] == 0) {
-			if (clk_id != VA_CORE_CLK) {
-				ret = bolero_clk_rsc_mux0_clk_request(priv,
-								default_clk_id,
+			ret = bolero_clk_rsc_mux0_clk_request(priv, default_clk_id,
 								true);
-				if (ret < 0)
-					goto done;
-			}
+			if (ret < 0)
+				goto done;
 
 			ret = clk_prepare_enable(priv->clk[clk_id]);
 			if (ret < 0) {
@@ -279,24 +271,12 @@ static int bolero_clk_rsc_mux1_clk_request(struct bolero_clk_rsc *priv,
 					goto err_npl_clk;
 				}
 			}
-
-			/*
-			 * Temp SW workaround to address a glitch issue of
-			 * VA GFMux instance responsible for switching from
-			 * TX MCLK to VA MCLK. This configuration would be taken
-			 * care in DSP itself
-			 */
-			if (clk_id != VA_CORE_CLK) {
-				if (priv->dev_up_gfmux) {
-					iowrite32(0x1, clk_muxsel);
-					muxsel = ioread32(clk_muxsel);
-					trace_printk("%s: muxsel value after enable: %d\n",
-							__func__, muxsel);
-				}
-				bolero_clk_rsc_mux0_clk_request(priv,
-							default_clk_id,
+			iowrite32(0x1, clk_muxsel);
+			muxsel = ioread32(clk_muxsel);
+			trace_printk("%s: muxsel value after enable: %d\n",
+					__func__, muxsel);
+			bolero_clk_rsc_mux0_clk_request(priv, default_clk_id,
 							false);
-			}
 		}
 		priv->clk_cnt[clk_id]++;
 	} else {
@@ -308,36 +288,23 @@ static int bolero_clk_rsc_mux1_clk_request(struct bolero_clk_rsc *priv,
 		}
 		priv->clk_cnt[clk_id]--;
 		if (priv->clk_cnt[clk_id] == 0) {
-			if (clk_id != VA_CORE_CLK) {
-				ret = bolero_clk_rsc_mux0_clk_request(priv,
+			ret = bolero_clk_rsc_mux0_clk_request(priv,
 						default_clk_id, true);
 
-				if (!ret) {
-					/*
-					 * Temp SW workaround to address a glitch issue
-					 * of VA GFMux instance responsible for
-					 * switching from TX MCLK to VA MCLK.
-					 * This configuration would be taken
-					 * care in DSP itself.
-					 */
-					if (priv->dev_up_gfmux) {
-						iowrite32(0x0, clk_muxsel);
-						muxsel = ioread32(clk_muxsel);
-						trace_printk("%s: muxsel value after disable: %d\n",
-								__func__, muxsel);
-					}
-				}
-			}
+			if (!ret)
+				iowrite32(0x0, clk_muxsel);
+
+			muxsel = ioread32(clk_muxsel);
+			trace_printk("%s: muxsel value after disable: %d\n",
+					__func__, muxsel);
 			if (priv->clk[clk_id + NPL_CLK_OFFSET])
 				clk_disable_unprepare(
 					priv->clk[clk_id + NPL_CLK_OFFSET]);
 			clk_disable_unprepare(priv->clk[clk_id]);
 
-			if (clk_id != VA_CORE_CLK) {
-				if (!ret)
-					bolero_clk_rsc_mux0_clk_request(priv,
+			if (!ret)
+				bolero_clk_rsc_mux0_clk_request(priv,
 						default_clk_id, false);
-			}
 		}
 	}
 	return ret;
@@ -346,8 +313,7 @@ err_npl_clk:
 	clk_disable_unprepare(priv->clk[clk_id]);
 
 err_clk:
-	if (clk_id != VA_CORE_CLK)
-		bolero_clk_rsc_mux0_clk_request(priv, default_clk_id, false);
+	bolero_clk_rsc_mux0_clk_request(priv, default_clk_id, false);
 done:
 	return ret;
 }
@@ -715,7 +681,6 @@ static int bolero_clk_rsc_probe(struct platform_device *pdev)
 	}
 	priv->dev = &pdev->dev;
 	priv->dev_up = true;
-	priv->dev_up_gfmux = true;
 	mutex_init(&priv->rsc_clk_lock);
 	mutex_init(&priv->fs_gen_lock);
 	dev_set_drvdata(&pdev->dev, priv);

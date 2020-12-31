@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -43,8 +43,15 @@
 #define TX_MACRO_ADC_MUX_CFG_OFFSET 0x8
 #define TX_MACRO_ADC_MODE_CFG0_SHIFT 1
 
+#ifndef VENDOR_EDIT
+/*Jianfeng.Qiu@PSW.MM.AudioDriver.Codec.1447862, 2018/06/26,
+ *Modify for pop noise when start dmic
+ */
 #define TX_MACRO_DMIC_UNMUTE_DELAY_MS	40
-#define TX_MACRO_AMIC_UNMUTE_DELAY_MS	100
+#else /* VENDOR_EDIT */
+#define TX_MACRO_DMIC_UNMUTE_DELAY_MS	50
+#endif /* VENDOR_EDIT */
+#define TX_MACRO_AMIC_UNMUTE_DELAY_MS	200
 #define TX_MACRO_DMIC_HPF_DELAY_MS	300
 #define TX_MACRO_AMIC_HPF_DELAY_MS	300
 
@@ -377,6 +384,9 @@ static int tx_macro_event_handler(struct snd_soc_component *component,
 		if (tx_priv->swr_ctrl_data) {
 			swrm_wcd_notify(
 				tx_priv->swr_ctrl_data[0].tx_swr_pdev,
+				SWR_DEVICE_DOWN, NULL);
+			swrm_wcd_notify(
+				tx_priv->swr_ctrl_data[0].tx_swr_pdev,
 				SWR_DEVICE_SSR_DOWN, NULL);
 		}
 		if ((!pm_runtime_enabled(tx_dev) ||
@@ -433,31 +443,23 @@ static int tx_macro_reg_wake_irq(struct snd_soc_component *component,
 	return ret;
 }
 
-static bool is_amic_enabled(struct snd_soc_component *component, int decimator)
+static int is_amic_enabled(struct snd_soc_component *component, int decimator)
 {
 	u16 adc_mux_reg = 0, adc_reg = 0;
 	u16 adc_n = BOLERO_ADC_MAX;
-	bool ret = false;
-	struct device *tx_dev = NULL;
-	struct tx_macro_priv *tx_priv = NULL;
-
-	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
-		return ret;
 
 	adc_mux_reg = BOLERO_CDC_TX_INP_MUX_ADC_MUX0_CFG1 +
 			TX_MACRO_ADC_MUX_CFG_OFFSET * decimator;
 	if (snd_soc_component_read32(component, adc_mux_reg) & SWR_MIC) {
-		if (tx_priv->version == BOLERO_VERSION_2_1)
-			return true;
 		adc_reg = BOLERO_CDC_TX_INP_MUX_ADC_MUX0_CFG0 +
 			TX_MACRO_ADC_MUX_CFG_OFFSET * decimator;
 		adc_n = snd_soc_component_read32(component, adc_reg) &
 				TX_MACRO_SWR_MIC_MUX_SEL_MASK;
-		if (adc_n < BOLERO_ADC_MAX)
-			return true;
+		if (adc_n >= BOLERO_ADC_MAX)
+			adc_n = BOLERO_ADC_MAX;
 	}
 
-	return ret;
+	return adc_n;
 }
 
 static void tx_macro_tx_hpf_corner_freq_callback(struct work_struct *work)
@@ -468,7 +470,7 @@ static void tx_macro_tx_hpf_corner_freq_callback(struct work_struct *work)
 	struct snd_soc_component *component = NULL;
 	u16 dec_cfg_reg = 0, hpf_gate_reg = 0;
 	u8 hpf_cut_off_freq = 0;
-	u16 adc_reg = 0, adc_n = 0;
+	u16 adc_n = 0;
 
 	hpf_delayed_work = to_delayed_work(work);
 	hpf_work = container_of(hpf_delayed_work, struct hpf_work, dwork);
@@ -484,11 +486,8 @@ static void tx_macro_tx_hpf_corner_freq_callback(struct work_struct *work)
 	dev_dbg(component->dev, "%s: decimator %u hpf_cut_of_freq 0x%x\n",
 		__func__, hpf_work->decimator, hpf_cut_off_freq);
 
-	if (is_amic_enabled(component, hpf_work->decimator)) {
-		adc_reg = BOLERO_CDC_TX_INP_MUX_ADC_MUX0_CFG0 +
-			TX_MACRO_ADC_MUX_CFG_OFFSET * hpf_work->decimator;
-		adc_n = snd_soc_component_read32(component, adc_reg) &
-				TX_MACRO_SWR_MIC_MUX_SEL_MASK;
+	adc_n = is_amic_enabled(component, hpf_work->decimator);
+	if (adc_n < BOLERO_ADC_MAX) {
 		/* analog mic clear TX hold */
 		bolero_clear_amic_tx_hold(component->dev, adc_n);
 		snd_soc_component_update_bits(component,
@@ -793,66 +792,6 @@ static int tx_macro_set_bcs(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static const char * const bcs_ch_sel_mux_text[] = {
-	"SWR_MIC0", "SWR_MIC1", "SWR_MIC2", "SWR_MIC3",
-	"SWR_MIC4", "SWR_MIC5", "SWR_MIC6", "SWR_MIC7",
-	"SWR_MIC8", "SWR_MIC9", "SWR_MIC10", "SWR_MIC11",
-};
-
-static const struct soc_enum bcs_ch_sel_mux_enum =
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(bcs_ch_sel_mux_text),
-			    bcs_ch_sel_mux_text);
-
-static int tx_macro_get_bcs_ch_sel(struct snd_kcontrol *kcontrol,
-			       struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component =
-				snd_soc_kcontrol_component(kcontrol);
-	struct tx_macro_priv *tx_priv = NULL;
-	struct device *tx_dev = NULL;
-	int value = 0;
-
-	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
-		return -EINVAL;
-
-	if (tx_priv->version == BOLERO_VERSION_2_1)
-		value = (snd_soc_component_read32(component,
-			BOLERO_CDC_VA_TOP_CSR_SWR_CTRL)) & 0x0F;
-	else if (tx_priv->version == BOLERO_VERSION_2_0)
-		value = (snd_soc_component_read32(component,
-			BOLERO_CDC_TX_TOP_CSR_SWR_CTRL)) & 0x0F;
-
-	ucontrol->value.integer.value[0] = value;
-	return 0;
-}
-
-static int tx_macro_put_bcs_ch_sel(struct snd_kcontrol *kcontrol,
-			       struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component =
-				snd_soc_kcontrol_component(kcontrol);
-	struct tx_macro_priv *tx_priv = NULL;
-	struct device *tx_dev = NULL;
-	int value;
-
-	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
-		return -EINVAL;
-
-	if (ucontrol->value.integer.value[0] < 0 ||
-	    ucontrol->value.integer.value[0] > ARRAY_SIZE(bcs_ch_sel_mux_text))
-		return -EINVAL;
-
-	value = ucontrol->value.integer.value[0];
-	if (tx_priv->version == BOLERO_VERSION_2_1)
-		snd_soc_component_update_bits(component,
-			BOLERO_CDC_VA_TOP_CSR_SWR_CTRL, 0x0F, value);
-	else if (tx_priv->version == BOLERO_VERSION_2_0)
-		snd_soc_component_update_bits(component,
-			BOLERO_CDC_TX_TOP_CSR_SWR_CTRL, 0x0F, value);
-
-	return 0;
-}
-
 static int tx_macro_enable_dmic(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *kcontrol, int event)
 {
@@ -905,8 +844,11 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 	int unmute_delay = TX_MACRO_DMIC_UNMUTE_DELAY_MS;
 	struct device *tx_dev = NULL;
 	struct tx_macro_priv *tx_priv = NULL;
+	#ifdef VENDOR_EDIT
+	// Kaijia.Lin@PSW.MM.AudioDriver.Codec, 2020/01/13, Add for CR#2599711 fixing muted tx issue
 	u16 adc_mux_reg = 0, adc_reg = 0, adc_n = 0;
 	u16 dmic_clk_reg = 0;
+	#endif /* VENDOR_EDIT */
 
 	if (!tx_macro_get_data(component, &tx_dev, &tx_priv, __func__))
 		return -EINVAL;
@@ -927,6 +869,8 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		#ifdef VENDOR_EDIT
+		// Kaijia.Lin@PSW.MM.AudioDriver.Codec, 2020/01/13, Add for CR#2599711 fixing muted tx issue
 		adc_mux_reg = BOLERO_CDC_TX_INP_MUX_ADC_MUX0_CFG1 +
 				TX_MACRO_ADC_MUX_CFG_OFFSET * decimator;
 		if (snd_soc_component_read32(component, adc_mux_reg) & SWR_MIC) {
@@ -943,6 +887,7 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 					0x0E, tx_priv->dmic_clk_div << 0x1);
 			}
 		}
+		#endif /* VENDOR_EDIT */
 		snd_soc_component_update_bits(component,
 			dec_cfg_reg, 0x06, tx_priv->dec_mode[decimator] <<
 			TX_MACRO_ADC_MODE_CFG0_SHIFT);
@@ -953,14 +898,16 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_component_update_bits(component,
 			tx_vol_ctl_reg, 0x20, 0x20);
-		if (!is_amic_enabled(component, decimator)) {
-			snd_soc_component_update_bits(component,
-				hpf_gate_reg, 0x01, 0x00);
-			/*
-		 	 * Minimum 1 clk cycle delay is required as per HW spec
-		 	 */
-			usleep_range(1000, 1010);
-		}
+		#ifndef VENDOR_EDIT
+		// Kaijia.Lin@PSW.MM.AudioDriver.Codec, 2020/01/13, Remove for CR#2599871 solving amic pop
+		snd_soc_component_update_bits(component,
+			hpf_gate_reg, 0x01, 0x00);
+		#endif /* VENDOR_EDIT */
+		/*
+		 * Minimum 1 clk cycle delay is required as per HW spec
+		 */
+		usleep_range(1000, 1010);
+
 		hpf_cut_off_freq = (
 			snd_soc_component_read32(component, dec_cfg_reg) &
 				TX_HPF_CUT_OFF_FREQ_MASK) >> 5;
@@ -973,36 +920,45 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 						TX_HPF_CUT_OFF_FREQ_MASK,
 						CF_MIN_3DB_150HZ << 5);
 
-		if (is_amic_enabled(component, decimator)) {
+		if (is_amic_enabled(component, decimator) < BOLERO_ADC_MAX) {
 			hpf_delay = TX_MACRO_AMIC_HPF_DELAY_MS;
 			unmute_delay = TX_MACRO_AMIC_UNMUTE_DELAY_MS;
 		}
 		if (tx_unmute_delay < unmute_delay)
 			tx_unmute_delay = unmute_delay;
 		/* schedule work queue to Remove Mute */
-		queue_delayed_work(system_freezable_wq,
-				   &tx_priv->tx_mute_dwork[decimator].dwork,
-				   msecs_to_jiffies(tx_unmute_delay));
+		schedule_delayed_work(&tx_priv->tx_mute_dwork[decimator].dwork,
+				      msecs_to_jiffies(tx_unmute_delay));
 		if (tx_priv->tx_hpf_work[decimator].hpf_cut_off_freq !=
 							CF_MIN_3DB_150HZ) {
-			queue_delayed_work(system_freezable_wq,
+			schedule_delayed_work(
 				&tx_priv->tx_hpf_work[decimator].dwork,
 				msecs_to_jiffies(hpf_delay));
+			#ifndef VENDOR_EDIT
+			// Kaijia.Lin@PSW.MM.AudioDriver.Codec, 2020/01/13, Modify for CR#2599871 solving amic pop
+			snd_soc_component_update_bits(component,
+					hpf_gate_reg, 0x03, 0x03);
+			#else /* VENDOR_EDIT */
 			snd_soc_component_update_bits(component,
 					hpf_gate_reg, 0x03, 0x02);
-			if (!is_amic_enabled(component, decimator))
-				snd_soc_component_update_bits(component,
-					hpf_gate_reg, 0x03, 0x00);
+			#endif /* VENDOR_EDIT */
 			/*
 			 * Minimum 1 clk cycle delay is required as per HW spec
 			 */
 			usleep_range(1000, 1010);
+			#ifndef VENDOR_EDIT
+			// Kaijia.Lin@PSW.MM.AudioDriver.Codec, 2020/01/13, Modify for CR#2599871 solving amic pop
+			// + CR#2578260 adding delay after hpf gate toggling
+			snd_soc_component_update_bits(component,
+					hpf_gate_reg, 0x02, 0x00);
+			#else /* VENDOR_EDIT */
 			snd_soc_component_update_bits(component,
 					hpf_gate_reg, 0x03, 0x01);
 			/*
 			 * 6ms delay is required as per HW spec
 			 */
 			usleep_range(6000, 6010);
+			#endif /* VENDOR_EDIT */
 		}
 		/* apply gain after decimator is enabled */
 		snd_soc_component_write(component, tx_gain_ctl_reg,
@@ -1030,15 +986,9 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 						component, dec_cfg_reg,
 						TX_HPF_CUT_OFF_FREQ_MASK,
 						hpf_cut_off_freq << 5);
-				if (is_amic_enabled(component, decimator))
-					snd_soc_component_update_bits(component,
-							hpf_gate_reg,
-							0x03, 0x02);
-				else
-					snd_soc_component_update_bits(component,
-							hpf_gate_reg,
-							0x03, 0x03);
-
+				snd_soc_component_update_bits(component,
+						hpf_gate_reg,
+						0x02, 0x02);
 				/*
 				 * Minimum 1 clk cycle delay is required
 				 * as per HW spec
@@ -1046,7 +996,7 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 				usleep_range(1000, 1010);
 				snd_soc_component_update_bits(component,
 						hpf_gate_reg,
-						0x03, 0x01);
+						0x02, 0x00);
 			}
 		}
 		cancel_delayed_work_sync(
@@ -1076,28 +1026,6 @@ static int tx_macro_enable_micbias(struct snd_soc_dapm_widget *w,
 {
 	return 0;
 }
-
-/* Cutoff frequency for high pass filter */
-static const char * const cf_text[] = {
-	"CF_NEG_3DB_4HZ", "CF_NEG_3DB_75HZ", "CF_NEG_3DB_150HZ"
-};
-
-static SOC_ENUM_SINGLE_DECL(cf_dec0_enum, BOLERO_CDC_TX0_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec1_enum, BOLERO_CDC_TX1_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec2_enum, BOLERO_CDC_TX2_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec3_enum, BOLERO_CDC_TX3_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec4_enum, BOLERO_CDC_TX4_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec5_enum, BOLERO_CDC_TX5_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec6_enum, BOLERO_CDC_TX6_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec7_enum, BOLERO_CDC_TX7_TX_PATH_CFG0, 5,
-							cf_text);
 
 static int tx_macro_hw_params(struct snd_pcm_substream *substream,
 			   struct snd_pcm_hw_params *params,
@@ -2326,9 +2254,6 @@ static const struct snd_kcontrol_new tx_macro_snd_controls_common[] = {
 
 	SOC_SINGLE_EXT("DEC0_BCS Switch", SND_SOC_NOPM, 0, 1, 0,
 		       tx_macro_get_bcs, tx_macro_set_bcs),
-
-	SOC_ENUM_EXT("BCS CH_SEL", bcs_ch_sel_mux_enum,
-			tx_macro_get_bcs_ch_sel, tx_macro_put_bcs_ch_sel),
 };
 
 static const struct snd_kcontrol_new tx_macro_snd_controls_v3[] = {
@@ -2407,21 +2332,6 @@ static const struct snd_kcontrol_new tx_macro_snd_controls[] = {
 
 	SOC_ENUM_EXT("DEC7 MODE", dec_mode_mux_enum,
 			tx_macro_dec_mode_get, tx_macro_dec_mode_put),
-	SOC_ENUM("TX0 HPF cut off", cf_dec0_enum),
-
-	SOC_ENUM("TX1 HPF cut off", cf_dec1_enum),
-
-	SOC_ENUM("TX2 HPF cut off", cf_dec2_enum),
-
-	SOC_ENUM("TX3 HPF cut off", cf_dec3_enum),
-
-	SOC_ENUM("TX4 HPF cut off", cf_dec4_enum),
-
-	SOC_ENUM("TX5 HPF cut off", cf_dec5_enum),
-
-	SOC_ENUM("TX6 HPF cut off", cf_dec6_enum),
-
-	SOC_ENUM("TX7 HPF cut off", cf_dec7_enum),
 
 	SOC_SINGLE_EXT("DEC0_BCS Switch", SND_SOC_NOPM, 0, 1, 0,
 		       tx_macro_get_bcs, tx_macro_set_bcs),
@@ -2449,8 +2359,7 @@ static int tx_macro_register_event_listener(struct snd_soc_component *component,
 			"%s: priv is null for macro!\n", __func__);
 		return -EINVAL;
 	}
-	if (tx_priv->swr_ctrl_data &&
-		(!tx_priv->tx_swr_clk_cnt || !tx_priv->va_swr_clk_cnt)) {
+	if (tx_priv->swr_ctrl_data && !tx_priv->tx_swr_clk_cnt) {
 		if (enable) {
 			ret = swrm_wcd_notify(
 				tx_priv->swr_ctrl_data[0].tx_swr_pdev,
@@ -2846,7 +2755,13 @@ undefined_rate:
 }
 
 static const struct tx_macro_reg_mask_val tx_macro_reg_init[] = {
+	#ifndef VENDOR_EDIT
+	// Kaijia.Lin@PSW.MM.AudioDriver.Codec, 2020/02/10,
+	// Modify for changing headset btn release hold time to 600ms
+	{BOLERO_CDC_TX0_TX_PATH_SEC7, 0x3F, 0x02},
+	#else /* VENDOR_EDIT */
 	{BOLERO_CDC_TX0_TX_PATH_SEC7, 0x3F, 0x0A},
+	#endif /* VENDOR_EDIT */
 };
 
 static int tx_macro_init(struct snd_soc_component *component)
@@ -3334,10 +3249,6 @@ static const struct of_device_id tx_macro_dt_match[] = {
 };
 
 static const struct dev_pm_ops bolero_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(
-		pm_runtime_force_suspend,
-		pm_runtime_force_resume
-	)
 	SET_RUNTIME_PM_OPS(
 		bolero_runtime_suspend,
 		bolero_runtime_resume,

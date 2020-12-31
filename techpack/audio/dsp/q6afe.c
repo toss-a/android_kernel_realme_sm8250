@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  */
 #include <linux/slab.h>
 #include <linux/debugfs.h>
@@ -10,7 +10,6 @@
 #include <linux/jiffies.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
-#include <linux/version.h>
 #include <dsp/msm_audio_ion.h>
 #include <dsp/apr_audio-v2.h>
 #include <dsp/audio_cal_utils.h>
@@ -22,6 +21,33 @@
 #include <ipc/apr_tal.h>
 #include "adsp_err.h"
 #include "q6afecal-hwdep.h"
+
+#ifndef VENDOR_EDIT
+/* Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Add for Max98937 */
+#define VENDOR_EDIT
+#endif /* VENDOR_EDIT */
+
+/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for tfa98xx vi feedback*/
+#ifndef CONFIG_SND_SOC_TFA9874
+#define CONFIG_SND_SOC_TFA9874
+#endif
+
+#ifdef VENDOR_EDIT
+
+#ifdef CONFIG_SND_SOC_TFA9874
+#define AFE_MODULE_ID_TFADSP_RX		(0x1000B911)
+#define AFE_MODULE_ID_TFADSP_TX		(0x1000B912)
+#define AFE_PARAM_ID_TFADSP_TX_SET_ENABLE		(0x1000B920)
+#define AFE_PARAM_ID_TFADSP_RX_CFG 				(0x1000B921)
+#define AFE_PARAM_ID_TFADSP_RX_GET_RESULT		(0x1000B922)
+#define AFE_PARAM_ID_TFADSP_RX_SET_BYPASS		(0x1000B923)
+#define AFE_PARAM_ID_TFADSP_RX_SET_HAPTIC_GAIN	(0x1000B98F)
+
+/*Attention: port_id = AFE_PORT_ID_TERTIARY_MI2S_RX or AFE_PORT_ID_QUATERNARY_MI2S_RX*/
+#define AFE_PORT_ID_TFADSP_RX	  AFE_PORT_ID_TERTIARY_MI2S_RX
+#define AFE_PORT_ID_TFADSP_TX	  AFE_PORT_ID_TERTIARY_MI2S_TX
+#endif /* CONFIG_SND_SOC_TFA9874 */
+#endif /* VENDOR_EDIT */
 
 #define WAKELOCK_TIMEOUT	5000
 #define AFE_CLK_TOKEN	1024
@@ -99,7 +125,7 @@ enum {
 };
 
 struct wlock {
-	struct wakeup_source *ws;
+	struct wakeup_source ws;
 };
 
 static struct wlock wl;
@@ -173,6 +199,19 @@ struct afe_ctl {
 	/* FTM spk params */
 	uint32_t initial_cal;
 	uint32_t v_vali_flag;
+#ifdef VENDOR_EDIT
+	/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for tfa98xx vi feedback*/
+	#ifdef CONFIG_SND_SOC_TFA9874
+	struct rtac_cal_block_data tfa_cal;
+	atomic_t tfa_state;
+	#endif /* CONFIG_SND_SOC_TFA9874 */
+#endif /* VENDOR_EDIT */
+#ifdef VENDOR_EDIT
+/* Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Add for Max98937 */
+#ifdef CONFIG_SND_SOC_MAX98937
+	uint8_t *dsm_payload;
+#endif
+#endif /* VENDOR_EDIT */
 };
 
 static atomic_t afe_ports_mad_type[SLIMBUS_PORT_LAST - SLIMBUS_0_RX];
@@ -468,6 +507,23 @@ static int32_t sp_make_afe_callback(uint32_t opcode, uint32_t *payload,
 				struct afe_sp_rx_tmax_xmax_logging_param);
 		data_dest = (u32 *) &this_afe.xt_logging_resp;
 		break;
+#ifdef VENDOR_EDIT
+/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Add for Max98937*/
+#ifdef CONFIG_SND_SOC_MAX98937
+#if 0
+/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for using tfa98xx*/
+	case AFE_PARAM_ID_DSM_CFG:
+	case AFE_PARAM_ID_DSM_INFO:
+		expected_size += sizeof(struct afe_dsm_param_array) - 8;
+		data_dest = (u32*) this_afe.dsm_payload;
+		break;
+	case AFE_PARAM_ID_CALIB:
+		expected_size += 14 * sizeof(u32);
+		data_dest = (u32*) this_afe.dsm_payload;
+		break;
+#endif /*if 0*/
+#endif
+#endif /* VENOR_EDIT */
 	default:
 		pr_err("%s: Unrecognized param ID %d\n", __func__,
 		       param_hdr.param_id);
@@ -634,7 +690,14 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 	    data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3) {
 		uint32_t *payload = data->payload;
 		uint32_t param_id;
+		#ifndef VENDOR_EDIT
+		/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Modify for tfa98xx vi feedback*/
 		uint32_t param_id_pos = 0;
+		#else /* VENDOR_EDIT */
+		#ifndef CONFIG_SND_SOC_TFA9874
+		uint32_t param_id_pos = 0;
+		#endif /*CONFIG_SND_SOC_TFA9874*/
+		#endif /* VENDOR_EDIT */
 
 		if (!payload || (data->token >= AFE_MAX_PORTS)) {
 			pr_err("%s: Error: size %d payload %pK token %d\n",
@@ -647,6 +710,8 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 					   data->payload_size))
 			return 0;
 
+		#ifndef VENDOR_EDIT
+		/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Modify for tfa98xx vi feedback*/
 		if (data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3)
 			param_id_pos = 4;
 		else
@@ -659,6 +724,27 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 				__func__, data->payload_size);
 			return -EINVAL;
 		}
+		#else /* VENDOR_EDIT */
+                #ifdef CONFIG_SND_SOC_TFA9874
+                param_id = (data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3) ?
+                                   payload[3] :
+                                   payload[2];
+                #else /*CONFIG_SND_SOC_TFA9874*/
+                if (data->opcode == AFE_PORT_CMDRSP_GET_PARAM_V3)
+                        param_id_pos = 4;
+                else
+                        param_id_pos = 3;
+
+                if (data->payload_size >= param_id_pos * sizeof(uint32_t))
+                                param_id = payload[param_id_pos - 1];
+                else {
+                        pr_err("%s: Error: size %d is less than expected\n",
+                                __func__, data->payload_size);
+                        return -EINVAL;
+                }
+                #endif /*CONFIG_SND_SOC_TFA9874*/
+                #endif /* VENDOR_EDIT */
+
 
 		if (param_id == AUDPROC_PARAM_ID_FFV_DOA_TRACKING_MONITOR) {
 			doa_tracking_mon_afe_cb_handler(data->opcode,
@@ -667,6 +753,26 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 			av_dev_drift_afe_cb_handler(data->opcode, data->payload,
 						    data->payload_size);
 		} else {
+			#ifdef VENDOR_EDIT
+                        /*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for tfa98xx vi feedback*/
+                        #ifdef CONFIG_SND_SOC_TFA9874
+                        if (atomic_read(&this_afe.tfa_state) == 1 &&
+                                data->payload_size == sizeof(uint32_t)) {
+
+                                atomic_set(&this_afe.status, payload[0]);
+                                if (payload[0])
+                                        atomic_set(&this_afe.state, -1);
+                                else
+                                        atomic_set(&this_afe.state, 0);
+
+                                atomic_set(&this_afe.tfa_state, 0);
+                                wake_up(&this_afe.wait[data->token]);
+
+                                return 0;
+                        }
+                        #endif /* CONFIG_SND_SOC_TFA9874 */
+                        #endif /* VENDOR_EDIT */
+
 			if (sp_make_afe_callback(data->opcode, data->payload,
 						 data->payload_size))
 				return -EINVAL;
@@ -1882,6 +1988,141 @@ fail_cmd:
 	return ret;
 }
 
+#ifdef VENDOR_EDIT
+/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Add for Max98937*/
+#ifdef CONFIG_SND_SOC_MAX98937
+static int afe_dsm_set_params(int port, int module_id, int param_id, uint8_t *payload, int size)
+{
+	struct param_hdr_v3 param_info = {0};
+	int ret = -EINVAL;
+
+	param_info.module_id = module_id;
+	param_info.instance_id = INSTANCE_ID_0;
+	param_info.param_id = param_id;
+	param_info.param_size = size;
+
+	ret = q6afe_pack_and_set_param_in_band(port,
+					       q6audio_get_port_index(port),
+					       param_info, payload);
+	if (ret) {
+		pr_err("%s: Failed to set speaker cfg param, err %d\n",
+		       __func__, ret);
+		goto fail_cmd;
+	}
+	ret = 0;
+fail_cmd:
+	pr_debug("%s: config.pdata.param_id 0x%x status %d\n", __func__,
+		 param_info.param_id, ret);
+	return ret;
+}
+
+static int afe_dsm_get_params(int port, int module_id, int param_id, uint8_t *payload, int size)
+{
+	struct param_hdr_v3 param_hdr = {0};
+	int ret = -EINVAL;
+
+	param_hdr.module_id = module_id;
+	param_hdr.instance_id = INSTANCE_ID_0;
+	param_hdr.param_id = param_id;
+	param_hdr.param_size = size;
+
+	this_afe.dsm_payload = payload - (sizeof(struct param_hdr_v3) + sizeof(uint32_t));
+
+	ret = q6afe_get_params(port, NULL, &param_hdr);
+	if (ret) {
+		pr_err("%s: Failed to get dsm cfg data\n", __func__);
+		goto done;
+	}
+
+	ret = 0;
+done:
+	return ret;
+}
+int afe_dsm_rx_get_params(uint8_t *payload, int size)
+{
+	return afe_dsm_get_params(DSM_RX_PORT_ID, AFE_MODULE_DSM_RX, AFE_PARAM_ID_DSM_CFG, payload, size);
+}
+EXPORT_SYMBOL(afe_dsm_rx_get_params);
+
+int afe_dsm_rx_set_params(uint8_t *payload, int size)
+{
+	return afe_dsm_set_params(DSM_RX_PORT_ID, AFE_MODULE_DSM_RX, AFE_PARAM_ID_DSM_CFG, payload, size);
+}
+EXPORT_SYMBOL(afe_dsm_rx_set_params);
+
+int afe_dsm_set_calib(uint8_t* payload)
+{
+	return afe_dsm_set_params(DSM_TX_PORT_ID, AFE_MODULE_DSM_TX, AFE_PARAM_ID_CALIB, payload, sizeof(uint32_t)*3);
+}
+EXPORT_SYMBOL(afe_dsm_set_calib);
+
+int afe_dsm_ramp_dn_cfg(uint8_t *payload, uint32_t delay_in_ms)
+{
+	int ret;
+	uint32_t *params = (uint32_t *)payload;
+
+	*(params)		= 0;
+	*(params + 1)	= 3;                //three command will be sent
+	*(params + 2)	= 0x03000063;       // fade out time
+	*(params + 3)	= 5;                // 5ms
+	*(params + 4)	= 0x03000064;       // mute time
+	*(params + 5)	= 500;              // 5s mute time will make sure silence output till PA software shutdown.
+	*(params + 6)	= 0x03000066;       // start fade
+	*(params + 7)	= 1;
+
+	ret = afe_dsm_rx_set_params(payload, sizeof(uint32_t)*8);
+	if (ret) {
+		pr_err("%s: Failed to set speaker ramp duration param, err %d\n",
+		       __func__, ret);
+		goto fail_cmd;
+	}
+	/* dsp needs atleast 15ms to ramp down pilot tone*/
+	usleep_range(delay_in_ms*1000, delay_in_ms*1000 + 10);
+	ret = 0;
+fail_cmd:
+	pr_debug("%s: status %d\n", __func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL(afe_dsm_ramp_dn_cfg);
+int afe_dsm_pre_calib(uint8_t* payload)
+{
+	uint32_t *params = (uint32_t *)payload;
+	*(params)		= 0;
+	*(params + 1)	= 1;               //count
+	*(params + 2)	= 0x03000001;     // enable flag
+	*(params + 3)	= 4;              // mode 0: disable, 1: enable, 2: bypass and pilot tone, 4: pilot tone only
+
+	afe_dsm_rx_set_params(payload, 4*sizeof(uint32_t));
+	usleep_range(1000*1000, 1000*1000 + 10);              //make the stable iv data
+	return 0;
+}
+EXPORT_SYMBOL(afe_dsm_pre_calib);
+
+int afe_dsm_post_calib(uint8_t* payload)
+{
+	uint32_t *params = (uint32_t *)payload;
+	*(params)		= 0;
+	*(params + 1)	= 1;               //count
+	*(params + 2)	= 0x03000001;     // enable flag
+	*(params + 3)	= 1;              // mode 0: disable, 1: enable, 2: bypass and pilot tone, 4: pilot tone only
+	return afe_dsm_rx_set_params(payload, 4*sizeof(uint32_t));
+}
+EXPORT_SYMBOL(afe_dsm_post_calib);
+
+int afe_dsm_get_calib(uint8_t* payload)
+{
+	return afe_dsm_get_params(DSM_TX_PORT_ID, AFE_MODULE_DSM_TX, AFE_PARAM_ID_CALIB, payload, sizeof(uint32_t)*14);
+}
+EXPORT_SYMBOL(afe_dsm_get_calib);
+
+int afe_dsm_set_status(uint8_t* payload)
+{
+	return afe_dsm_set_params(DSM_RX_PORT_ID, AFE_MODULE_DSM_RX, AFE_PARAM_ID_DSM_INFO, (int8_t*)payload, sizeof(uint32_t)*8);
+}
+EXPORT_SYMBOL(afe_dsm_set_status);
+#endif
+#endif /* VENDOR_EDIT */
+
 static int afe_spk_prot_prepare(int src_port, int dst_port, int param_id,
 				union afe_spkr_prot_config *prot_config)
 {
@@ -1929,6 +2170,21 @@ static int afe_spk_prot_prepare(int src_port, int dst_port, int param_id,
 	case AFE_PARAM_ID_SP_V2_EX_VI_FTM_CFG:
 		param_info.module_id = AFE_MODULE_SPEAKER_PROTECTION_V2_EX_VI;
 		break;
+	#ifdef VENDOR_EDIT
+        /*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for tfa98xx vi feedback*/
+        #ifdef CONFIG_SND_SOC_TFA9874
+        case AFE_PARAM_ID_TFADSP_RX_CFG:
+        case AFE_PARAM_ID_TFADSP_RX_SET_BYPASS:
+        case AFE_PARAM_ID_TFADSP_RX_SET_HAPTIC_GAIN:
+                param_info.module_id = AFE_MODULE_ID_TFADSP_RX;
+                break;
+
+        case AFE_PARAM_ID_TFADSP_TX_SET_ENABLE:
+                param_info.module_id = AFE_MODULE_ID_TFADSP_TX;
+                break;
+        #endif  /* CONFIG_SND_SOC_TFA9874 */
+        #endif /* VENDOR_EDIT */
+
 	default:
 		pr_err("%s: default case 0x%x\n", __func__, param_id);
 		goto fail_cmd;
@@ -7021,7 +7277,7 @@ static int afe_sidetone_iir(u16 tx_port_id)
 	 * Set IIR enable params
 	 */
 	param_hdr.module_id = mid;
-	param_hdr.instance_id = INSTANCE_ID_0;
+	param_hdr.param_id = INSTANCE_ID_0;
 	param_hdr.param_id = AFE_PARAM_ID_ENABLE;
 	param_hdr.param_size = sizeof(enable);
 	enable.enable = iir_enable;
@@ -8730,7 +8986,7 @@ static int afe_set_cal_fb_spkr_prot(int32_t cal_type, size_t data_size,
 		goto done;
 
 	if (cal_data->cal_info.mode == MSM_SPKR_PROT_CALIBRATION_IN_PROGRESS)
-		__pm_wakeup_event(wl.ws, jiffies_to_msecs(WAKELOCK_TIMEOUT));
+		__pm_wakeup_event(&wl.ws, jiffies_to_msecs(WAKELOCK_TIMEOUT));
 	mutex_lock(&this_afe.cal_data[AFE_FB_SPKR_PROT_CAL]->lock);
 	memcpy(&this_afe.prot_cfg, &cal_data->cal_info,
 		sizeof(this_afe.prot_cfg));
@@ -8936,7 +9192,7 @@ static int afe_get_cal_fb_spkr_prot(int32_t cal_type, size_t data_size,
 	}
 	this_afe.initial_cal = 0;
 	mutex_unlock(&this_afe.cal_data[AFE_FB_SPKR_PROT_CAL]->lock);
-	__pm_relax(wl.ws);
+	__pm_relax(&wl.ws);
 done:
 	return ret;
 }
@@ -9200,6 +9456,213 @@ static void afe_release_uevent_data(struct kobject *kobj)
 	kfree(data);
 }
 
+#ifdef VENDOR_EDIT
+/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for tfa98xx vi feedback*/
+#ifdef CONFIG_SND_SOC_TFA9874
+int send_tfa_cal_apr(void *buf, int cmd_size, bool bRead)
+{
+	int32_t result, port_id = AFE_PORT_ID_TFADSP_RX;
+	uint32_t port_index = 0, payload_size = 0;
+	size_t len;
+	struct rtac_cal_block_data *tfa_cal = &(this_afe.tfa_cal);
+	struct mem_mapping_hdr mem_hdr;
+	struct param_hdr_v3  param_hdr;
+
+	pr_debug("%s\n", __func__);
+
+	memset(&mem_hdr, 0x00, sizeof(mem_hdr));
+	memset(&param_hdr, 0x00, sizeof(param_hdr));
+
+	if (0 == tfa_cal->map_data.dma_buf ) {
+		/*Minimal chunk size is 4K*/
+		tfa_cal->map_data.map_size = SZ_4K;
+		result = msm_audio_ion_alloc(&(tfa_cal->map_data.dma_buf),
+								tfa_cal->map_data.map_size,
+								&(tfa_cal->cal_data.paddr),
+								&len,
+								&(tfa_cal->cal_data.kvaddr));
+		if (result < 0) {
+			pr_err("%s: allocate buffer failed! ret = %d\n",
+				__func__, result);
+			goto err;
+		}
+		pr_debug("%s: paddr 0x%pK, kvaddr 0x%pK, map_size 0x%x\n",
+				__func__,
+				&tfa_cal->cal_data.paddr,
+				tfa_cal->cal_data.kvaddr,
+				tfa_cal->map_data.map_size);
+	}
+
+	if (0 == tfa_cal->map_data.map_handle ) {
+		result = afe_map_rtac_block(tfa_cal);
+		if (result < 0) {
+			pr_err("%s: map buffer failed! ret = %d\n",
+				__func__, result);
+			goto err;
+		}
+	}
+
+	port_index = q6audio_get_port_index(port_id);
+	if (port_index >= AFE_MAX_PORTS) {
+		pr_err("%s: Invalid AFE port = 0x%x\n", __func__, port_id);
+		goto err;
+	}
+
+	if (cmd_size > (SZ_4K - sizeof(struct param_hdr_v3))) {
+		pr_err("%s: Invalid payload size = %d\n", __func__, cmd_size);
+		result = -EINVAL;
+		goto err;
+	}
+
+	/* Pack message header with data */
+	param_hdr.module_id = AFE_MODULE_ID_TFADSP_RX;
+	param_hdr.instance_id = INSTANCE_ID_0;
+	param_hdr.param_size = cmd_size;
+
+	if (!bRead) {
+		param_hdr.param_id = AFE_PARAM_ID_TFADSP_RX_CFG;
+
+		q6common_pack_pp_params(tfa_cal->cal_data.kvaddr,
+							&param_hdr,
+							buf,
+							&payload_size);
+		tfa_cal->cal_data.size = payload_size;
+	}
+	else {
+		param_hdr.param_id = AFE_PARAM_ID_TFADSP_RX_GET_RESULT;
+		tfa_cal->cal_data.size = cmd_size + sizeof(struct param_hdr_v3) ;
+	}
+
+	/*Send/Get package to/from ADSP*/
+	mem_hdr.data_payload_addr_lsw =
+		lower_32_bits(tfa_cal->cal_data.paddr);
+	mem_hdr.data_payload_addr_msw =
+		msm_audio_populate_upper_32_bits(tfa_cal->cal_data.paddr);
+	mem_hdr.mem_map_handle =
+		tfa_cal->map_data.map_handle;
+
+	pr_debug("%s: Sending tfa_cal port = 0x%x, cal size = %zd, cal addr = 0x%pK\n",
+		__func__, port_id, tfa_cal->cal_data.size, &tfa_cal->cal_data.paddr);
+
+	result = afe_q6_interface_prepare();
+	if (result != 0) {
+		pr_err("%s: Q6 interface prepare failed %d\n", __func__, result);
+		goto err;
+	}
+
+	if (!bRead) {
+		if (q6common_is_instance_id_supported())
+			result = q6afe_set_params_v3(port_id, port_index, &mem_hdr, NULL, payload_size);
+		else
+			result = q6afe_set_params_v2(port_id, port_index, &mem_hdr, NULL, payload_size);
+	} else {
+		int8_t *resp = (int8_t *)tfa_cal->cal_data.kvaddr;
+
+		atomic_set(&this_afe.tfa_state, 1);
+		if (q6common_is_instance_id_supported()){
+			result = q6afe_get_params_v3(port_id, port_index, &mem_hdr, &param_hdr);
+			resp += sizeof(struct param_hdr_v3);
+		}
+		else {
+			result = q6afe_get_params_v2(port_id, port_index, &mem_hdr, &param_hdr);
+			resp += sizeof(struct param_hdr_v1);
+		}
+
+		if (result) {
+			pr_err("%s: get response from port 0x%x failed %d\n",
+					__func__, port_id, result);
+			goto err;
+		}
+		else {
+			/*Copy response data to command buffer*/
+			memcpy(buf,  resp,  cmd_size);
+		}
+	}
+
+err:
+	return result;
+}
+EXPORT_SYMBOL(send_tfa_cal_apr);
+
+void send_tfa_cal_unmap_memory(void)
+{
+	int result = 0;
+
+	if (this_afe.tfa_cal.map_data.map_handle) {
+		result = afe_unmap_rtac_block(&this_afe.tfa_cal.map_data.map_handle);
+
+		/*Force to remap after unmap failed*/
+		if (result)
+			this_afe.tfa_cal.map_data.map_handle = 0;
+	}
+}
+EXPORT_SYMBOL(send_tfa_cal_unmap_memory);
+
+int send_tfa_cal_in_band(void *buf, int cmd_size)
+{
+	union afe_spkr_prot_config afe_spk_config;
+	int32_t port_id = AFE_PORT_ID_TFADSP_RX;
+
+	if (cmd_size > sizeof(afe_spk_config))
+		return -EINVAL;
+
+	memcpy(&afe_spk_config, buf, cmd_size);
+
+	if (afe_spk_prot_prepare(port_id, 0,
+			AFE_PARAM_ID_TFADSP_RX_CFG,
+			&afe_spk_config)) {
+			pr_err("%s: AFE_PARAM_ID_TFADSP_RX_CFG failed\n",
+				   __func__);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(send_tfa_cal_in_band);
+
+int send_tfa_cal_set_bypass(void *buf, int cmd_size)
+{
+	union afe_spkr_prot_config afe_spk_config;
+	int32_t port_id = AFE_PORT_ID_TFADSP_RX;
+
+	if (cmd_size > sizeof(afe_spk_config))
+		return -EINVAL;
+
+	memcpy(&afe_spk_config, buf, cmd_size);
+
+	if (afe_spk_prot_prepare(port_id, 0,
+			AFE_PARAM_ID_TFADSP_RX_SET_BYPASS,
+			&afe_spk_config)) {
+		pr_err("%s: AFE_PARAM_ID_TFADSP_RX_SET_BYPASS failed\n",
+				   __func__);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(send_tfa_cal_set_bypass);
+
+int send_tfa_cal_set_tx_enable(void *buf, int cmd_size)
+{
+	union afe_spkr_prot_config afe_spk_config;
+	int32_t port_id = AFE_PORT_ID_TFADSP_TX;
+
+	if (cmd_size > sizeof(afe_spk_config))
+		return -EINVAL;
+
+	memcpy(&afe_spk_config, buf, cmd_size);
+
+	if (afe_spk_prot_prepare(port_id, 0,
+			AFE_PARAM_ID_TFADSP_TX_SET_ENABLE,
+			&afe_spk_config)) {
+		pr_err("%s: AFE_PARAM_ID_TFADSP_TX_SET_ENABLE failed\n",
+				   __func__);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(send_tfa_cal_set_tx_enable);
+#endif /* CONFIG_SND_SOC_TFA9874 */
+#endif /* VENDOR_EDIT */
+
 int __init afe_init(void)
 {
 	int i = 0, ret;
@@ -9234,6 +9697,7 @@ int __init afe_init(void)
 	init_waitqueue_head(&this_afe.wait_wakeup);
 	init_waitqueue_head(&this_afe.lpass_core_hw_wait);
 	init_waitqueue_head(&this_afe.clk_wait);
+	wakeup_source_init(&wl.ws, "spkr-prot");
 	ret = afe_init_cal_data();
 	if (ret)
 		pr_err("%s: could not init cal data! %d\n", __func__, ret);
@@ -9243,12 +9707,8 @@ int __init afe_init(void)
 	this_afe.uevent_data = kzalloc(sizeof(*(this_afe.uevent_data)), GFP_KERNEL);
 	if (!this_afe.uevent_data)
 		return -ENOMEM;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 110))
-	wl.ws = wakeup_source_register(NULL, "spkr-prot")
-#else
-	wl.ws = wakeup_source_register("spkr-prot");
-#endif
-/*
+
+	/*
 	 * Set release function to cleanup memory related to kobject
 	 * before initializing the kobject.
 	 */
@@ -9267,6 +9727,13 @@ int __init afe_init(void)
 
 void afe_exit(void)
 {
+	#ifdef VENDOR_EDIT
+        /*zhenyu.dong@PSW.MM.AudioDriver.SmartPA, 2019/07/20, Add for tfa98xx vi feedback*/
+        #ifdef CONFIG_SND_SOC_TFA9874
+        afe_unmap_rtac_block(&this_afe.tfa_cal.map_data.map_handle);
+        #endif /* CONFIG_SND_SOC_TFA9874 */
+        #endif /* VENDOR_EDIT */
+
 	if (this_afe.apr) {
 		apr_reset(this_afe.apr);
 		atomic_set(&this_afe.state, 0);
@@ -9282,7 +9749,7 @@ void afe_exit(void)
 	mutex_destroy(&this_afe.afe_cmd_lock);
 	mutex_destroy(&this_afe.afe_apr_lock);
 	mutex_destroy(&this_afe.afe_clk_lock);
-	wakeup_source_unregister(wl.ws);
+	wakeup_source_trash(&wl.ws);
 }
 
 /*

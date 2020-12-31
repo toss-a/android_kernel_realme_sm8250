@@ -2,6 +2,10 @@
 /* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  */
 
+#ifndef VENDOR_EDIT
+/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/26, Add for Max98937*/
+#define VENDOR_EDIT
+#endif /* VENDOR_EDIT */
 #define CONFIG_PINCTRL_LPI 1
 #define CONFIG_PINCTRL_WCD 1
 #define CONFIG_AUDIO_EXT_CLK 1
@@ -40,3 +44,8 @@
 #define CONFIG_SND_SOC_KONA 1
 #define CONFIG_SND_EVENT 1
 #define CONFIG_VOICE_MHI 1
+#ifdef VENDOR_EDIT
+/*zhenyu.dong@RM.MM.AudioDriver.Codec, 2019/11/20, Add for tfa9874 codec*/
+#define CONFIG_SND_SOC_TFA9874 1
+#endif /* VENDOR_EDIT */
+

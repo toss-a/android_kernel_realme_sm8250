@@ -47,21 +47,17 @@ include $(MY_LOCAL_PATH)/asoc/codecs/wcd937x/Android.mk
 endif
 endif
 
-ifeq ($(call is-board-platform-in-list, bengal),true)
-$(shell rm -rf $(PRODUCT_OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/rouleur/Module.symvers)
-include $(MY_LOCAL_PATH)/asoc/codecs/rouleur/Android.mk
-endif
-
 ifeq ($(call is-board-platform-in-list, kona lito),true)
 $(shell rm -rf $(PRODUCT_OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/bolero/Module.symvers)
 include $(MY_LOCAL_PATH)/asoc/codecs/bolero/Android.mk
 $(shell rm -rf $(PRODUCT_OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/wcd938x/Module.symvers)
 include $(MY_LOCAL_PATH)/asoc/codecs/wcd938x/Android.mk
-$(shell rm -rf $(PRODUCT_OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/wcd937x/Module.symvers)
-include $(MY_LOCAL_PATH)/asoc/codecs/wcd937x/Android.mk
 endif
 
-ifeq ($(call is-board-platform-in-list, lito),true)
-$(shell rm -rf $(PRODUCT_OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/wsa883x/Module.symvers)
-include $(MY_LOCAL_PATH)/asoc/codecs/wsa883x/Android.mk
-endif
+#ifdef VENDOR_EDIT
+#zhenyu.dong@RM.MM.AudioDriver.Codec, 2019/11/20, Add for tfa98xx codec
+$(shell rm -rf $(PRODUCT_OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/tfa98xx-v6/Module.symvers)
+include $(MY_LOCAL_PATH)/asoc/codecs/tfa98xx-v6/Android.mk
+LOCAL_CFLAGS += -DVENDOR_EDIT
+#endif /* VENDOR_EDIT */
+

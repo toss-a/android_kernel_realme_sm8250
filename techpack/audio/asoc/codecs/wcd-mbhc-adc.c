@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/init.h>
@@ -274,6 +274,7 @@ static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 	u8 elect_ctl = 0;
 	u8 adc_en = 0;
 
+
 	pr_debug("%s: enter\n", __func__);
 	/* Check for button press and plug detection */
 	if (wcd_swch_level_remove(mbhc)) {
@@ -358,6 +359,7 @@ static int wcd_mbhc_adc_get_spl_hs_thres(struct wcd_mbhc *mbhc)
 		hs_threshold = ((WCD_MBHC_ADC_HS_THRESHOLD_MV *
 			micbias_mv) / WCD_MBHC_ADC_MICBIAS_MV);
 	}
+
 	return hs_threshold;
 }
 
@@ -376,6 +378,7 @@ static int wcd_mbhc_adc_get_hs_thres(struct wcd_mbhc *mbhc)
 		hs_threshold = ((WCD_MBHC_ADC_HS_THRESHOLD_MV *
 			micbias_mv) / WCD_MBHC_ADC_MICBIAS_MV);
 	}
+
 	return hs_threshold;
 }
 
@@ -394,6 +397,7 @@ static int wcd_mbhc_adc_get_hph_thres(struct wcd_mbhc *mbhc)
 		hph_threshold = ((WCD_MBHC_ADC_HPH_THRESHOLD_MV *
 			micbias_mv) / WCD_MBHC_ADC_MICBIAS_MV);
 	}
+
 	return hph_threshold;
 }
 
@@ -565,6 +569,7 @@ static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 {
 	struct snd_soc_component *component = mbhc->component;
 
+
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
@@ -618,7 +623,6 @@ static int wcd_mbhc_get_plug_from_adc(struct wcd_mbhc *mbhc, int adc_result)
 
 	return plug_type;
 }
-
 static void wcd_correct_swch_plug(struct work_struct *work)
 {
 	struct wcd_mbhc *mbhc;
@@ -661,6 +665,7 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 			 __func__, plug_type);
 		goto correct_plug_type;
 	}
+
 	/* Find plug type */
 	output_mv = wcd_measure_adc_continuous(mbhc);
 	plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
@@ -810,6 +815,7 @@ correct_plug_type:
 			if (plug_type != MBHC_PLUG_TYPE_GND_MIC_SWAP) {
 				plug_type = wcd_mbhc_get_plug_from_adc(
 						mbhc, output_mv);
+
 				if (!spl_hs_reported &&
 				    spl_hs_count == WCD_MBHC_SPL_HS_CNT) {
 					spl_hs_reported = true;
@@ -893,6 +899,8 @@ enable_supply:
 	 * so that btn press/release interrupt can be generated.
 	 * For other plug type, clear the bit.
 	 */
+
+
 	if (plug_type == MBHC_PLUG_TYPE_HEADSET ||
 	    plug_type == MBHC_PLUG_TYPE_ANC_HEADPHONE)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 1);
@@ -1113,7 +1121,6 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_ISRC_EN, 0);
 	mbhc->is_extn_cable = true;
 	mbhc->btn_press_intr = false;
-	mbhc->force_linein = false;
 	wcd_mbhc_adc_detect_plug_type(mbhc);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
 	pr_debug("%s: leave\n", __func__);

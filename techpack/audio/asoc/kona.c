@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -31,10 +31,7 @@
 #include "asoc/wcd-mbhc-v2.h"
 #include "codecs/wcd938x/wcd938x-mbhc.h"
 #include "codecs/wsa881x.h"
-#include "codecs/wsa883x/wsa883x.h"
 #include "codecs/wcd938x/wcd938x.h"
-#include "codecs/wcd937x/wcd937x-mbhc.h"
-#include "codecs/wcd937x/wcd937x.h"
 #include "codecs/bolero/bolero-cdc.h"
 #include <dt-bindings/sound/audio-codec-port-types.h>
 #include "codecs/bolero/wsa-macro.h"
@@ -71,7 +68,14 @@
 #define CODEC_EXT_CLK_RATE          9600000
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 #define DEV_NAME_STR_LEN            32
+#ifndef VENDOR_EDIT
+/*Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDet.1226699, 2017/03/06,
+ *Modify for headset detect.
+ */
 #define WCD_MBHC_HS_V_MAX           1600
+#else /* VENDOR_EDIT */
+#define WCD_MBHC_HS_V_MAX           1700
+#endif /* VENDOR_EDIT */
 
 #define TDM_CHANNEL_MAX		8
 #define DEV_NAME_STR_LEN	32
@@ -80,10 +84,8 @@
 
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 
-#define WSA8810_NAME_1 "wsa881x.1020170211"
-#define WSA8810_NAME_2 "wsa881x.1020170212"
-#define WSA8815_NAME_1 "wsa881x.1021170213"
-#define WSA8815_NAME_2 "wsa881x.1021170214"
+#define WSA8810_NAME_1 "wsa881x.20170211"
+#define WSA8810_NAME_2 "wsa881x.20170212"
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX_LITO 3
@@ -312,10 +314,60 @@ static struct afe_clk_set mi2s_clk[MI2S_MAX] = {
 	},
 };
 
+#ifdef VENDOR_EDIT
+/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+static struct afe_clk_set mi2s_mclk[MI2S_MAX] = {
+	{
+		AFE_API_VERSION_I2S_CONFIG,
+		Q6AFE_LPASS_CLK_ID_MCLK_1,
+		Q6AFE_LPASS_OSR_CLK_9_P600_MHZ,
+		Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+		Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+		0,
+	},
+	{
+		AFE_API_VERSION_I2S_CONFIG,
+		Q6AFE_LPASS_CLK_ID_MCLK_1,
+		Q6AFE_LPASS_OSR_CLK_9_P600_MHZ,
+		Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+		Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+		0,
+	},
+	{
+		AFE_API_VERSION_I2S_CONFIG,
+		Q6AFE_LPASS_CLK_ID_MCLK_1,
+		Q6AFE_LPASS_OSR_CLK_9_P600_MHZ,
+		Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+		Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+		0,
+	},
+	{
+		AFE_API_VERSION_I2S_CONFIG,
+		Q6AFE_LPASS_CLK_ID_MCLK_1,
+		Q6AFE_LPASS_OSR_CLK_9_P600_MHZ,
+		Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+		Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+		0,
+	},
+	{
+		AFE_API_VERSION_I2S_CONFIG,
+		Q6AFE_LPASS_CLK_ID_QUI_MI2S_OSR,
+		Q6AFE_LPASS_OSR_CLK_9_P600_MHZ,
+		Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+		Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+		0,
+	}
+};
+#endif /* VENDOR_EDIT */
+
 struct mi2s_conf {
 	struct mutex lock;
 	u32 ref_cnt;
 	u32 msm_is_mi2s_master;
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	u32 msm_is_ext_mclk;
+	#endif /* VENDOR_EDIT */
 };
 
 static u32 mi2s_ebit_clk[MI2S_MAX] = {
@@ -864,23 +916,6 @@ static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc85_dma_rx_3_sample_rate,
 static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc85_dma_rx_5_sample_rate,
 				cdc_dma_sample_rate_text);
 
-/* WCD937x */
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_0_format, bit_format_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_1_format, bit_format_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_2_format, bit_format_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_3_format, bit_format_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_5_format, bit_format_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_0_sample_rate,
-				cdc_dma_sample_rate_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_1_sample_rate,
-				cdc_dma_sample_rate_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_2_sample_rate,
-				cdc_dma_sample_rate_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_3_sample_rate,
-				cdc_dma_sample_rate_text);
-static SOC_ENUM_SINGLE_EXT_DECL(rx_cdc_dma_rx_5_sample_rate,
-				cdc_dma_sample_rate_text);
-
 static SOC_ENUM_SINGLE_EXT_DECL(ext_disp_rx_chs, ch_text);
 static SOC_ENUM_SINGLE_EXT_DECL(ext_disp_rx_format, ext_disp_bit_format_text);
 static SOC_ENUM_SINGLE_EXT_DECL(ext_disp_rx_sample_rate,
@@ -908,7 +943,14 @@ static void *def_wcd_mbhc_cal(void);
 static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
+	#ifndef VENDOR_EDIT
+	/* Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDet.959366, 2017/04/10,
+	 * Modify for headset detect.
+	 */
 	.detect_extn_cable = true,
+	#else /* VENDOR_EDIT */
+	.detect_extn_cable = false,
+	#endif /* VENDOR_EDIT */
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
@@ -925,7 +967,12 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.mbhc_micbias = MIC_BIAS_2,
 	.anc_micbias = MIC_BIAS_2,
 	.enable_anc_mic_detect = false,
+	#ifndef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDet, 2019/08/31, Modify for disable moisture detect. bit2~3*/
 	.moisture_duty_cycle_en = true,
+	#else /*VENDOR_EDIT*/
+	.moisture_duty_cycle_en = false,
+	#endif /*VENDOR_EDIT*/
 };
 
 static inline int param_is_mask(int p)
@@ -3706,39 +3753,6 @@ static const struct snd_kcontrol_new msm_int_wcd9385_snd_controls[] = {
 			cdc_dma_rx_sample_rate_put),
 };
 
-static const struct snd_kcontrol_new msm_int_wcd937x_snd_controls[] = {
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_0 Format", rx_cdc_dma_rx_0_format,
-			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_1 Format", rx_cdc_dma_rx_1_format,
-			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_2 Format", rx_cdc_dma_rx_2_format,
-			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_3 Format", rx_cdc_dma_rx_3_format,
-			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_5 Format", rx_cdc_dma_rx_5_format,
-			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_0 SampleRate",
-			rx_cdc_dma_rx_0_sample_rate,
-			cdc_dma_rx_sample_rate_get,
-			cdc_dma_rx_sample_rate_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_1 SampleRate",
-			rx_cdc_dma_rx_1_sample_rate,
-			cdc_dma_rx_sample_rate_get,
-			cdc_dma_rx_sample_rate_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_2 SampleRate",
-			rx_cdc_dma_rx_2_sample_rate,
-			cdc_dma_rx_sample_rate_get,
-			cdc_dma_rx_sample_rate_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_3 SampleRate",
-			rx_cdc_dma_rx_3_sample_rate,
-			cdc_dma_rx_sample_rate_get,
-			cdc_dma_rx_sample_rate_put),
-	SOC_ENUM_EXT("RX_CDC_DMA_RX_5 SampleRate",
-			rx_cdc_dma_rx_5_sample_rate,
-			cdc_dma_rx_sample_rate_get,
-			cdc_dma_rx_sample_rate_put),
-};
-
 static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 	SOC_ENUM_EXT("USB_AUDIO_RX SampleRate", usb_rx_sample_rate,
 			usb_audio_rx_sample_rate_get,
@@ -3746,46 +3760,6 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 	SOC_ENUM_EXT("USB_AUDIO_TX SampleRate", usb_tx_sample_rate,
 			usb_audio_tx_sample_rate_get,
 			usb_audio_tx_sample_rate_put),
-	SOC_ENUM_EXT("USB_AUDIO_RX Format", usb_rx_format,
-			usb_audio_rx_format_get, usb_audio_rx_format_put),
-	SOC_ENUM_EXT("USB_AUDIO_TX Format", usb_tx_format,
-			usb_audio_tx_format_get, usb_audio_tx_format_put),
-	SOC_ENUM_EXT("USB_AUDIO_RX Channels", usb_rx_chs,
-			usb_audio_rx_ch_get, usb_audio_rx_ch_put),
-	SOC_ENUM_EXT("USB_AUDIO_TX Channels", usb_tx_chs,
-			usb_audio_tx_ch_get, usb_audio_tx_ch_put),
-	SOC_ENUM_EXT("PROXY_RX Channels", proxy_rx_chs,
-			proxy_rx_ch_get, proxy_rx_ch_put),
-	SOC_ENUM_EXT("Display Port RX Channels", ext_disp_rx_chs,
-			ext_disp_rx_ch_get, ext_disp_rx_ch_put),
-	SOC_ENUM_EXT("Display Port RX Bit Format", ext_disp_rx_format,
-			ext_disp_rx_format_get, ext_disp_rx_format_put),
-	SOC_ENUM_EXT("Display Port RX SampleRate", ext_disp_rx_sample_rate,
-			ext_disp_rx_sample_rate_get,
-			ext_disp_rx_sample_rate_put),
-	SOC_ENUM_EXT("Display Port1 RX Channels", ext_disp_rx_chs,
-			ext_disp_rx_ch_get, ext_disp_rx_ch_put),
-	SOC_ENUM_EXT("Display Port1 RX Bit Format", ext_disp_rx_format,
-			ext_disp_rx_format_get, ext_disp_rx_format_put),
-	SOC_ENUM_EXT("Display Port1 RX SampleRate", ext_disp_rx_sample_rate,
-			ext_disp_rx_sample_rate_get,
-			ext_disp_rx_sample_rate_put),
-	SOC_ENUM_EXT("BT SampleRate", bt_sample_rate,
-			msm_bt_sample_rate_get,
-			msm_bt_sample_rate_put),
-	SOC_ENUM_EXT("BT SampleRate RX", bt_sample_rate_rx,
-			msm_bt_sample_rate_rx_get,
-			msm_bt_sample_rate_rx_put),
-	SOC_ENUM_EXT("BT SampleRate TX", bt_sample_rate_tx,
-			msm_bt_sample_rate_tx_get,
-			msm_bt_sample_rate_tx_put),
-	SOC_ENUM_EXT("AFE_LOOPBACK_TX Channels", afe_loopback_tx_chs,
-			afe_loopback_tx_ch_get, afe_loopback_tx_ch_put),
-	SOC_ENUM_EXT("VI_FEED_TX Channels", vi_feed_tx_chs,
-			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
-};
-
-static const struct snd_kcontrol_new msm_tdm_snd_controls[] = {
 	SOC_ENUM_EXT("PRI_TDM_RX_0 SampleRate", tdm_rx_sample_rate,
 			tdm_rx_sample_rate_get,
 			tdm_rx_sample_rate_put),
@@ -3822,83 +3796,6 @@ static const struct snd_kcontrol_new msm_tdm_snd_controls[] = {
 	SOC_ENUM_EXT("SEN_TDM_TX_0 SampleRate", tdm_tx_sample_rate,
 			tdm_tx_sample_rate_get,
 			tdm_tx_sample_rate_put),
-	SOC_ENUM_EXT("PRI_TDM_RX_0 Format", tdm_rx_format,
-			tdm_rx_format_get,
-			tdm_rx_format_put),
-	SOC_ENUM_EXT("SEC_TDM_RX_0 Format", tdm_rx_format,
-			tdm_rx_format_get,
-			tdm_rx_format_put),
-	SOC_ENUM_EXT("TERT_TDM_RX_0 Format", tdm_rx_format,
-			tdm_rx_format_get,
-			tdm_rx_format_put),
-	SOC_ENUM_EXT("QUAT_TDM_RX_0 Format", tdm_rx_format,
-			tdm_rx_format_get,
-			tdm_rx_format_put),
-	SOC_ENUM_EXT("QUIN_TDM_RX_0 Format", tdm_rx_format,
-			tdm_rx_format_get,
-			tdm_rx_format_put),
-	SOC_ENUM_EXT("SEN_TDM_RX_0 Format", tdm_rx_format,
-			tdm_rx_format_get,
-			tdm_rx_format_put),
-	SOC_ENUM_EXT("PRI_TDM_TX_0 Format", tdm_tx_format,
-			tdm_tx_format_get,
-			tdm_tx_format_put),
-	SOC_ENUM_EXT("SEC_TDM_TX_0 Format", tdm_tx_format,
-			tdm_tx_format_get,
-			tdm_tx_format_put),
-	SOC_ENUM_EXT("TERT_TDM_TX_0 Format", tdm_tx_format,
-			tdm_tx_format_get,
-			tdm_tx_format_put),
-	SOC_ENUM_EXT("QUAT_TDM_TX_0 Format", tdm_tx_format,
-			tdm_tx_format_get,
-			tdm_tx_format_put),
-	SOC_ENUM_EXT("QUIN_TDM_TX_0 Format", tdm_tx_format,
-			tdm_tx_format_get,
-			tdm_tx_format_put),
-	SOC_ENUM_EXT("SEN_TDM_TX_0 Format", tdm_tx_format,
-			tdm_tx_format_get,
-			tdm_tx_format_put),
-	SOC_ENUM_EXT("PRI_TDM_RX_0 Channels", tdm_rx_chs,
-			tdm_rx_ch_get,
-			tdm_rx_ch_put),
-	SOC_ENUM_EXT("SEC_TDM_RX_0 Channels", tdm_rx_chs,
-			tdm_rx_ch_get,
-			tdm_rx_ch_put),
-	SOC_ENUM_EXT("TERT_TDM_RX_0 Channels", tdm_rx_chs,
-			tdm_rx_ch_get,
-			tdm_rx_ch_put),
-	SOC_ENUM_EXT("QUAT_TDM_RX_0 Channels", tdm_rx_chs,
-			tdm_rx_ch_get,
-			tdm_rx_ch_put),
-	SOC_ENUM_EXT("QUIN_TDM_RX_0 Channels", tdm_rx_chs,
-			tdm_rx_ch_get,
-			tdm_rx_ch_put),
-	SOC_ENUM_EXT("SEN_TDM_RX_0 Channels", tdm_rx_chs,
-			tdm_rx_ch_get,
-			tdm_rx_ch_put),
-	SOC_ENUM_EXT("PRI_TDM_TX_0 Channels", tdm_tx_chs,
-			tdm_tx_ch_get,
-			tdm_tx_ch_put),
-	SOC_ENUM_EXT("SEC_TDM_TX_0 Channels", tdm_tx_chs,
-			tdm_tx_ch_get,
-			tdm_tx_ch_put),
-	SOC_ENUM_EXT("TERT_TDM_TX_0 Channels", tdm_tx_chs,
-			tdm_tx_ch_get,
-			tdm_tx_ch_put),
-	SOC_ENUM_EXT("QUAT_TDM_TX_0 Channels", tdm_tx_chs,
-			tdm_tx_ch_get,
-			tdm_tx_ch_put),
-	SOC_ENUM_EXT("QUIN_TDM_TX_0 Channels", tdm_tx_chs,
-			tdm_tx_ch_get,
-			tdm_tx_ch_put),
-	SOC_ENUM_EXT("SEN_TDM_TX_0 Channels", tdm_tx_chs,
-			tdm_tx_ch_get,
-			tdm_tx_ch_put),
-	SOC_SINGLE_MULTI_EXT("TDM Slot Map", SND_SOC_NOPM, 0, 255, 0,
-			TDM_MAX_SLOTS + MAX_PATH, NULL, tdm_slot_map_put),
-};
-
-static const struct snd_kcontrol_new msm_auxpcm_snd_controls[] = {
 	SOC_ENUM_EXT("PRIM_AUX_PCM_RX SampleRate", prim_aux_pcm_rx_sample_rate,
 			aux_pcm_rx_sample_rate_get,
 			aux_pcm_rx_sample_rate_put),
@@ -3935,33 +3832,6 @@ static const struct snd_kcontrol_new msm_auxpcm_snd_controls[] = {
 	SOC_ENUM_EXT("SEN_AUX_PCM_TX SampleRate", sen_aux_pcm_tx_sample_rate,
 			aux_pcm_tx_sample_rate_get,
 			aux_pcm_tx_sample_rate_put),
-	SOC_ENUM_EXT("PRIM_AUX_PCM_RX Format", aux_pcm_rx_format,
-			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
-	SOC_ENUM_EXT("SEC_AUX_PCM_RX Format", aux_pcm_rx_format,
-			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
-	SOC_ENUM_EXT("TERT_AUX_PCM_RX Format", aux_pcm_rx_format,
-			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
-	SOC_ENUM_EXT("QUAT_AUX_PCM_RX Format", aux_pcm_rx_format,
-			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
-	SOC_ENUM_EXT("QUIN_AUX_PCM_RX Format", aux_pcm_rx_format,
-			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
-	SOC_ENUM_EXT("SEN_AUX_PCM_RX Format", aux_pcm_rx_format,
-			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
-	SOC_ENUM_EXT("PRIM_AUX_PCM_TX Format", aux_pcm_tx_format,
-			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
-	SOC_ENUM_EXT("SEC_AUX_PCM_TX Format", aux_pcm_tx_format,
-			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
-	SOC_ENUM_EXT("TERT_AUX_PCM_TX Format", aux_pcm_tx_format,
-			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
-	SOC_ENUM_EXT("QUAT_AUX_PCM_TX Format", aux_pcm_tx_format,
-			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
-	SOC_ENUM_EXT("QUIN_AUX_PCM_TX Format", aux_pcm_tx_format,
-			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
-	SOC_ENUM_EXT("SEN_AUX_PCM_TX Format", aux_pcm_tx_format,
-			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
-};
-
-static const struct snd_kcontrol_new msm_mi2s_snd_controls[] = {
 	SOC_ENUM_EXT("PRIM_MI2S_RX SampleRate", prim_mi2s_rx_sample_rate,
 			mi2s_rx_sample_rate_get,
 			mi2s_rx_sample_rate_put),
@@ -3998,6 +3868,70 @@ static const struct snd_kcontrol_new msm_mi2s_snd_controls[] = {
 	SOC_ENUM_EXT("SEN_MI2S_TX SampleRate", sen_mi2s_tx_sample_rate,
 			mi2s_tx_sample_rate_get,
 			mi2s_tx_sample_rate_put),
+	SOC_ENUM_EXT("USB_AUDIO_RX Format", usb_rx_format,
+			usb_audio_rx_format_get, usb_audio_rx_format_put),
+	SOC_ENUM_EXT("USB_AUDIO_TX Format", usb_tx_format,
+			usb_audio_tx_format_get, usb_audio_tx_format_put),
+	SOC_ENUM_EXT("PRI_TDM_RX_0 Format", tdm_rx_format,
+			tdm_rx_format_get,
+			tdm_rx_format_put),
+	SOC_ENUM_EXT("SEC_TDM_RX_0 Format", tdm_rx_format,
+			tdm_rx_format_get,
+			tdm_rx_format_put),
+	SOC_ENUM_EXT("TERT_TDM_RX_0 Format", tdm_rx_format,
+			tdm_rx_format_get,
+			tdm_rx_format_put),
+	SOC_ENUM_EXT("QUAT_TDM_RX_0 Format", tdm_rx_format,
+			tdm_rx_format_get,
+			tdm_rx_format_put),
+	SOC_ENUM_EXT("QUIN_TDM_RX_0 Format", tdm_rx_format,
+			tdm_rx_format_get,
+			tdm_rx_format_put),
+	SOC_ENUM_EXT("SEN_TDM_RX_0 Format", tdm_rx_format,
+			tdm_rx_format_get,
+			tdm_rx_format_put),
+	SOC_ENUM_EXT("PRI_TDM_TX_0 Format", tdm_tx_format,
+			tdm_tx_format_get,
+			tdm_tx_format_put),
+	SOC_ENUM_EXT("SEC_TDM_TX_0 Format", tdm_tx_format,
+			tdm_tx_format_get,
+			tdm_tx_format_put),
+	SOC_ENUM_EXT("TERT_TDM_TX_0 Format", tdm_tx_format,
+			tdm_tx_format_get,
+			tdm_tx_format_put),
+	SOC_ENUM_EXT("QUAT_TDM_TX_0 Format", tdm_tx_format,
+			tdm_tx_format_get,
+			tdm_tx_format_put),
+	SOC_ENUM_EXT("QUIN_TDM_TX_0 Format", tdm_tx_format,
+			tdm_tx_format_get,
+			tdm_tx_format_put),
+	SOC_ENUM_EXT("SEN_TDM_TX_0 Format", tdm_tx_format,
+			tdm_tx_format_get,
+			tdm_tx_format_put),
+	SOC_ENUM_EXT("PRIM_AUX_PCM_RX Format", aux_pcm_rx_format,
+			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
+	SOC_ENUM_EXT("SEC_AUX_PCM_RX Format", aux_pcm_rx_format,
+			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
+	SOC_ENUM_EXT("TERT_AUX_PCM_RX Format", aux_pcm_rx_format,
+			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
+	SOC_ENUM_EXT("QUAT_AUX_PCM_RX Format", aux_pcm_rx_format,
+			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
+	SOC_ENUM_EXT("QUIN_AUX_PCM_RX Format", aux_pcm_rx_format,
+			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
+	SOC_ENUM_EXT("SEN_AUX_PCM_RX Format", aux_pcm_rx_format,
+			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
+	SOC_ENUM_EXT("PRIM_AUX_PCM_TX Format", aux_pcm_tx_format,
+			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
+	SOC_ENUM_EXT("SEC_AUX_PCM_TX Format", aux_pcm_tx_format,
+			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
+	SOC_ENUM_EXT("TERT_AUX_PCM_TX Format", aux_pcm_tx_format,
+			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
+	SOC_ENUM_EXT("QUAT_AUX_PCM_TX Format", aux_pcm_tx_format,
+			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
+	SOC_ENUM_EXT("QUIN_AUX_PCM_TX Format", aux_pcm_tx_format,
+			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
+	SOC_ENUM_EXT("SEN_AUX_PCM_TX Format", aux_pcm_tx_format,
+			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
 	SOC_ENUM_EXT("PRIM_MI2S_RX Format", mi2s_rx_format,
 			msm_mi2s_rx_format_get, msm_mi2s_rx_format_put),
 	SOC_ENUM_EXT("SEC_MI2S_RX Format", mi2s_rx_format,
@@ -4022,6 +3956,48 @@ static const struct snd_kcontrol_new msm_mi2s_snd_controls[] = {
 			msm_mi2s_tx_format_get, msm_mi2s_tx_format_put),
 	SOC_ENUM_EXT("SEN_MI2S_TX Format", mi2s_tx_format,
 			msm_mi2s_tx_format_get, msm_mi2s_tx_format_put),
+	SOC_ENUM_EXT("USB_AUDIO_RX Channels", usb_rx_chs,
+			usb_audio_rx_ch_get, usb_audio_rx_ch_put),
+	SOC_ENUM_EXT("USB_AUDIO_TX Channels", usb_tx_chs,
+			usb_audio_tx_ch_get, usb_audio_tx_ch_put),
+	SOC_ENUM_EXT("PROXY_RX Channels", proxy_rx_chs,
+			proxy_rx_ch_get, proxy_rx_ch_put),
+	SOC_ENUM_EXT("PRI_TDM_RX_0 Channels", tdm_rx_chs,
+			tdm_rx_ch_get,
+			tdm_rx_ch_put),
+	SOC_ENUM_EXT("SEC_TDM_RX_0 Channels", tdm_rx_chs,
+			tdm_rx_ch_get,
+			tdm_rx_ch_put),
+	SOC_ENUM_EXT("TERT_TDM_RX_0 Channels", tdm_rx_chs,
+			tdm_rx_ch_get,
+			tdm_rx_ch_put),
+	SOC_ENUM_EXT("QUAT_TDM_RX_0 Channels", tdm_rx_chs,
+			tdm_rx_ch_get,
+			tdm_rx_ch_put),
+	SOC_ENUM_EXT("QUIN_TDM_RX_0 Channels", tdm_rx_chs,
+			tdm_rx_ch_get,
+			tdm_rx_ch_put),
+	SOC_ENUM_EXT("SEN_TDM_RX_0 Channels", tdm_rx_chs,
+			tdm_rx_ch_get,
+			tdm_rx_ch_put),
+	SOC_ENUM_EXT("PRI_TDM_TX_0 Channels", tdm_tx_chs,
+			tdm_tx_ch_get,
+			tdm_tx_ch_put),
+	SOC_ENUM_EXT("SEC_TDM_TX_0 Channels", tdm_tx_chs,
+			tdm_tx_ch_get,
+			tdm_tx_ch_put),
+	SOC_ENUM_EXT("TERT_TDM_TX_0 Channels", tdm_tx_chs,
+			tdm_tx_ch_get,
+			tdm_tx_ch_put),
+	SOC_ENUM_EXT("QUAT_TDM_TX_0 Channels", tdm_tx_chs,
+			tdm_tx_ch_get,
+			tdm_tx_ch_put),
+	SOC_ENUM_EXT("QUIN_TDM_TX_0 Channels", tdm_tx_chs,
+			tdm_tx_ch_get,
+			tdm_tx_ch_put),
+	SOC_ENUM_EXT("SEN_TDM_TX_0 Channels", tdm_tx_chs,
+			tdm_tx_ch_get,
+			tdm_tx_ch_put),
 	SOC_ENUM_EXT("PRIM_MI2S_RX Channels", prim_mi2s_rx_chs,
 			msm_mi2s_rx_ch_get, msm_mi2s_rx_ch_put),
 	SOC_ENUM_EXT("SEC_MI2S_RX Channels", sec_mi2s_rx_chs,
@@ -4046,6 +4022,35 @@ static const struct snd_kcontrol_new msm_mi2s_snd_controls[] = {
 			msm_mi2s_tx_ch_get, msm_mi2s_tx_ch_put),
 	SOC_ENUM_EXT("SEN_MI2S_TX Channels", sen_mi2s_tx_chs,
 			msm_mi2s_tx_ch_get, msm_mi2s_tx_ch_put),
+	SOC_ENUM_EXT("Display Port RX Channels", ext_disp_rx_chs,
+			ext_disp_rx_ch_get, ext_disp_rx_ch_put),
+	SOC_ENUM_EXT("Display Port RX Bit Format", ext_disp_rx_format,
+			ext_disp_rx_format_get, ext_disp_rx_format_put),
+	SOC_ENUM_EXT("Display Port RX SampleRate", ext_disp_rx_sample_rate,
+			ext_disp_rx_sample_rate_get,
+			ext_disp_rx_sample_rate_put),
+	SOC_ENUM_EXT("Display Port1 RX Channels", ext_disp_rx_chs,
+			ext_disp_rx_ch_get, ext_disp_rx_ch_put),
+	SOC_ENUM_EXT("Display Port1 RX Bit Format", ext_disp_rx_format,
+			ext_disp_rx_format_get, ext_disp_rx_format_put),
+	SOC_ENUM_EXT("Display Port1 RX SampleRate", ext_disp_rx_sample_rate,
+			ext_disp_rx_sample_rate_get,
+			ext_disp_rx_sample_rate_put),
+	SOC_ENUM_EXT("BT SampleRate", bt_sample_rate,
+			msm_bt_sample_rate_get,
+			msm_bt_sample_rate_put),
+	SOC_ENUM_EXT("BT SampleRate RX", bt_sample_rate_rx,
+			msm_bt_sample_rate_rx_get,
+			msm_bt_sample_rate_rx_put),
+	SOC_ENUM_EXT("BT SampleRate TX", bt_sample_rate_tx,
+			msm_bt_sample_rate_tx_get,
+			msm_bt_sample_rate_tx_put),
+	SOC_ENUM_EXT("AFE_LOOPBACK_TX Channels", afe_loopback_tx_chs,
+			afe_loopback_tx_ch_get, afe_loopback_tx_ch_put),
+	SOC_ENUM_EXT("VI_FEED_TX Channels", vi_feed_tx_chs,
+			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
+	SOC_SINGLE_MULTI_EXT("TDM Slot Map", SND_SOC_NOPM, 0, 255, 0,
+			TDM_MAX_SLOTS + MAX_PATH, NULL, tdm_slot_map_put),
 };
 
 static const struct snd_kcontrol_new msm_snd_controls[] = {
@@ -4538,7 +4543,13 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool acti
 	if (!pdata->fsa_handle)
 		return false;
 
+	#ifndef VENDOR_EDIT
+	/*Zhao.Pan@PSW.MM.AudioDriver.HeadsetDet.2573181, 2019/11/23,
+	 *fsa4480_switch_event will return 0 when excute success.*/
 	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	#else
+	return (0 == fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP));
+	#endif /* VENDOR_EDIT */
 }
 
 static bool msm_swap_gnd_mic(struct snd_soc_component *component, bool active)
@@ -5017,6 +5028,10 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int index = cpu_dai->id;
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	int port_id = msm_get_port_id(rtd->dai_link->id);
+	#endif /* VENDOR_EDIT */
 	unsigned int fmt = SND_SOC_DAIFMT_CBS_CFS;
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
@@ -5026,6 +5041,15 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		"%s: substream = %s  stream = %d, dai name %s, dai ID %d\n",
 		__func__, substream->name, substream->stream,
 		cpu_dai->name, cpu_dai->id);
+
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	if (port_id < 0) {
+		dev_err(rtd->card->dev, "%s: Invalid port_id\n", __func__);
+		ret = port_id;
+		goto err;
+	}
+	#endif /* VENDOR_EDIT */
 
 	if (index < PRIM_MI2S || index >= MI2S_MAX) {
 		ret = -EINVAL;
@@ -5088,6 +5112,36 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 				__func__, index, ret);
 			goto clk_off;
 		}
+
+		#ifdef VENDOR_EDIT
+		/*Jianfeng.Qiu@PSW.MM.AudioDriver.Codec, 2019/07/15,
+		 *Add for AKM use as master mode.
+		 */
+		if ((!mi2s_intf_conf[index].msm_is_mi2s_master)
+				&& (index == PRIM_MI2S)) {
+			ret = snd_soc_dai_set_fmt(rtd->codec_dai, fmt | SND_SOC_DAIFMT_I2S);
+			if (ret < 0) {
+				pr_warn("%s: set codec fmt fail, ret=%d \n", __func__, ret);
+			}
+		}
+		#endif /* VENDOR_EDIT */
+
+		#ifdef VENDOR_EDIT
+		/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+		if (mi2s_intf_conf[index].msm_is_ext_mclk) {
+			pr_debug("%s: Enabling mclk, clk_freq_in_hz = %u\n",
+				__func__, mi2s_mclk[index].clk_freq_in_hz);
+			mi2s_mclk[index].enable = 1;
+			ret = afe_set_lpass_clock_v2(port_id,
+						     &mi2s_mclk[index]);
+			if (ret < 0) {
+				pr_err("%s: afe lpass mclk failed, err:%d\n",
+					__func__, ret);
+				goto clk_off;
+			}
+		}
+		#endif /* VENDOR_EDIT */
+
 		if (pdata->mi2s_gpio_p[index]) {
 			if (atomic_read(&(pdata->mi2s_gpio_ref_count[index]))
 									== 0) {
@@ -5121,11 +5175,24 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	int index = rtd->cpu_dai->id;
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	int port_id = msm_get_port_id(rtd->dai_link->id);
+	#endif /* VENDOR_EDIT */
 	struct snd_soc_card *card = rtd->card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 		 substream->name, substream->stream);
+
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	if (port_id < 0) {
+		dev_err(rtd->card->dev, "%s: Invalid port_id\n", __func__);
+		return;
+	}
+	#endif /* VENDOR_EDIT */
+
 	if (index < PRIM_MI2S || index >= MI2S_MAX) {
 		pr_err("%s:invalid MI2S DAI(%d)\n", __func__, index);
 		return;
@@ -5149,6 +5216,19 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		if (ret < 0)
 			pr_err("%s:clock disable failed for MI2S (%d); ret=%d\n",
 				__func__, index, ret);
+		#ifdef VENDOR_EDIT
+		/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+		if (mi2s_intf_conf[index].msm_is_ext_mclk) {
+			pr_debug("%s: Disabling mclk, clk_freq_in_hz = %u\n",
+				__func__, mi2s_mclk[index].clk_freq_in_hz);
+			mi2s_mclk[index].enable = 0;
+			ret = afe_set_lpass_clock_v2(port_id,
+					&mi2s_mclk[index]);
+			if (ret < 0)
+				pr_err("%s: mclk disable failed for MCLK (%d); ret=%d\n",
+					__func__, index, ret);
+		}
+		#endif /* VENDOR_EDIT */
 	}
 	mi2s_disable_audio_vote(substream);
 	mutex_unlock(&mi2s_intf_conf[index].lock);
@@ -5377,45 +5457,6 @@ static int msm_wcn_init_lito(struct snd_soc_pcm_runtime *rtd)
 					   tx_ch, ARRAY_SIZE(rx_ch), rx_ch);
 }
 
-#ifndef CONFIG_TDM_DISABLE
-static void msm_add_tdm_snd_controls(struct snd_soc_component *component)
-{
-	snd_soc_add_component_controls(component, msm_tdm_snd_controls,
-				ARRAY_SIZE(msm_tdm_snd_controls));
-}
-#else
-static void msm_add_tdm_snd_controls(struct snd_soc_component *component)
-{
-	return;
-}
-#endif
-
-#ifndef CONFIG_MI2S_DISABLE
-static void msm_add_mi2s_snd_controls(struct snd_soc_component *component)
-{
-	snd_soc_add_component_controls(component, msm_mi2s_snd_controls,
-				ARRAY_SIZE(msm_mi2s_snd_controls));
-}
-#else
-static void msm_add_mi2s_snd_controls(struct snd_soc_component *component)
-{
-	return;
-}
-#endif
-
-#ifndef CONFIG_AUXPCM_DISABLE
-static void msm_add_auxpcm_snd_controls(struct snd_soc_component *component)
-{
-	snd_soc_add_component_controls(component, msm_auxpcm_snd_controls,
-				ARRAY_SIZE(msm_auxpcm_snd_controls));
-}
-#else
-static void msm_add_auxpcm_snd_controls(struct snd_soc_component *component)
-{
-	return;
-}
-#endif
-
 static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int ret = -EINVAL;
@@ -5424,9 +5465,6 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_card *card;
 	struct snd_info_entry *entry;
 	struct snd_soc_component *aux_comp;
-	struct platform_device *pdev = NULL;
-	int i = 0;
-	char *data = NULL;
 	struct msm_asoc_mach_data *pdata =
 				snd_soc_card_get_drvdata(rtd->card);
 
@@ -5453,10 +5491,6 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 			__func__, ret);
 		return ret;
 	}
-
-	msm_add_tdm_snd_controls(component);
-	msm_add_mi2s_snd_controls(component);
-	msm_add_auxpcm_snd_controls(component);
 
 	snd_soc_dapm_new_controls(dapm, msm_int_dapm_widgets,
 				ARRAY_SIZE(msm_int_dapm_widgets));
@@ -5501,59 +5535,20 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 						WSA_MACRO_SPKR_MODE_1);
 				wsa_macro_set_spkr_gain_offset(component,
 						WSA_MACRO_GAIN_OFFSET_M1P5_DB);
-			} else if (aux_comp->name != NULL && (
-				!strcmp(aux_comp->name, WSA8815_NAME_1) ||
-		    		!strcmp(aux_comp->name, WSA8815_NAME_2))) {
-				wsa_macro_set_spkr_mode(component,
-						WSA_MACRO_SPKR_MODE_DEFAULT);
 			}
 		}
-	}
-
-	for (i = 0; i < rtd->card->num_aux_devs; i++)
-	{
-		if (msm_aux_dev[i].name != NULL ) {
-			if (strstr(msm_aux_dev[i].name, "wsa"))
-				continue;
-		}
-
-		if (msm_aux_dev[i].codec_of_node) {
-			pdev = of_find_device_by_node(
-					msm_aux_dev[i].codec_of_node);
-
-			if (pdev)
-				data = (char*) of_device_get_match_data(
-								&pdev->dev);
-			if (data != NULL) {
-				if (!strncmp(data, "wcd937x",
-						sizeof("wcd937x"))) {
-					bolero_set_port_map(component,
-						ARRAY_SIZE(sm_port_map_wcd937x),
-						sm_port_map_wcd937x);
-					break;
-				} else if (!strncmp( data, "wcd938x",
-							sizeof("wcd938x"))) {
-					if (pdata->lito_v2_enabled) {
-						/*
-						 * Enable tx data line3 for
-						 * saipan version v2 and
-						 * write corresponding
-						 * lpi register.
-						 */
-						bolero_set_port_map(component,
-							ARRAY_SIZE(sm_port_map_v2),
-							sm_port_map_v2);
-					} else {
-						bolero_set_port_map(component,
-							ARRAY_SIZE(sm_port_map),
-							sm_port_map);
-					}
-					break;
-				}
-			}
+		if (pdata->lito_v2_enabled) {
+			/*
+			 * Enable tx data line3 for saipan version v2 amd
+			 * write corresponding lpi register.
+			 */
+			bolero_set_port_map(component, ARRAY_SIZE(sm_port_map_v2),
+					sm_port_map_v2);
+		} else {
+			bolero_set_port_map(component, ARRAY_SIZE(sm_port_map),
+					sm_port_map);
 		}
 	}
-
 	card = rtd->card->snd_card;
 	if (!pdata->codec_root) {
 		entry = snd_info_create_subdir(card->module, "codecs",
@@ -5591,6 +5586,10 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high = ((void *)&btn_cfg->_v_btn_low) +
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
+	#ifndef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDet.1226706, 2017/03/03,
+	 *Modify for headset button threshold.
+	 */
 	btn_high[0] = 75;
 	btn_high[1] = 150;
 	btn_high[2] = 237;
@@ -5599,6 +5598,16 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high[5] = 500;
 	btn_high[6] = 500;
 	btn_high[7] = 500;
+	#else /* VENDOR_EDIT */
+	btn_high[0] = 130;		/* Hook ,0 ~ 160 Ohm*/
+	btn_high[1] = 131;
+	btn_high[2] = 253;		/* Volume + ,160 ~ 360 Ohm*/
+	btn_high[3] = 425;		/* Volume - ,360 ~ 680 Ohm*/
+	btn_high[4] = 426;
+	btn_high[5] = 426;
+	btn_high[6] = 426;
+	btn_high[7] = 426;
+	#endif /* VENDOR_EDIT */
 
 	return wcd_mbhc_cal;
 }
@@ -6113,6 +6122,10 @@ static struct snd_soc_dai_link msm_common_dai_links[] = {
 		.cpu_dai_name = "TX3_CDC_DMA_HOSTLESS",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		#ifdef VENDOR_EDIT
+		/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/08/31, Add for loopback test*/
+		.dpcm_playback = 1,
+		#endif /* VENDOR_EDIT */
 		.dpcm_capture = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
@@ -6248,6 +6261,24 @@ static struct snd_soc_dai_link msm_common_misc_fe_dai_links[] = {
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ops = &msm_cdc_dma_be_ops,
 	},
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/09/12, Add for headset mic loopback, add to the end*/
+	{/* TX_CDC_DMA_TX_4 */
+		.name = "TX4_CDC_DMA Hostless",
+		.stream_name = "TX4_CDC_DMA Hostless",
+		.cpu_dai_name = "TX4_CDC_DMA_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+	#endif /* VENDOR_EDIT */
 };
 
 static struct snd_soc_dai_link msm_common_be_dai_links[] = {
@@ -6366,10 +6397,6 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 	},
-};
-
-
-static struct snd_soc_dai_link msm_tdm_be_dai_links[] = {
 	{
 		.name = LPASS_BE_PRI_TDM_RX_0,
 		.stream_name = "Primary TDM0 Playback",
@@ -6668,6 +6695,60 @@ static struct snd_soc_dai_link ext_disp_be_dai_link[] = {
 		.ignore_suspend = 1,
 	},
 };
+
+#ifdef VENDOR_EDIT
+/* zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/20, Add for tfa98xx */
+//for stereo
+struct snd_soc_dai_link_component tfa98xx_dails[] = {
+        {
+                .name = "tfa98xx.5-0035",
+                .dai_name = "tfa98xx-aif-5-35",
+        },
+
+        {
+                .name = "tfa98xx.5-0034",
+                .dai_name = "tfa98xx-aif-5-34",
+        },
+};
+
+static struct snd_soc_dai_link tfa98xx_stereo_be_dai_links[] = {
+        {
+                .name = LPASS_BE_TERT_MI2S_RX,
+                .stream_name = "Tertiary MI2S Playback",
+                .cpu_dai_name = "msm-dai-q6-mi2s.2",
+                .platform_name = "msm-pcm-routing",
+                .codecs = tfa98xx_dails,
+                .num_codecs = ARRAY_SIZE(tfa98xx_dails),
+                .no_pcm = 1,
+                .dpcm_playback = 1,
+                .id = MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+                .be_hw_params_fixup = msm_be_hw_params_fixup,
+                .ops = &msm_mi2s_be_ops,
+                .ignore_suspend = 1,
+                .ignore_pmdown_time = 1,
+        },
+};
+
+//for mono
+static struct snd_soc_dai_link tfa98xx_mono_be_dai_links[] = {
+        {
+                .name = LPASS_BE_TERT_MI2S_RX,
+                .stream_name = "Tertiary MI2S Playback",
+                .cpu_dai_name = "msm-dai-q6-mi2s.2",
+                .platform_name = "msm-pcm-routing",
+                .codec_name = "tfa98xx.5-0035",
+                .codec_dai_name = "tfa98xx-aif-5-35",
+                .no_pcm = 1,
+                .dpcm_playback = 1,
+                .id = MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+                .be_hw_params_fixup = msm_be_hw_params_fixup,
+                .ops = &msm_mi2s_be_ops,
+                .ignore_suspend = 1,
+                .ignore_pmdown_time = 1,
+        },
+};
+#endif /* VENDOR_EDIT */
+
 
 static struct snd_soc_dai_link msm_mi2s_be_dai_links[] = {
 	{
@@ -7233,6 +7314,24 @@ static struct snd_soc_dai_link msm_afe_rxtx_lb_be_dai_link[] = {
 	},
 };
 
+#ifndef VENDOR_EDIT
+/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Modify for Max98937*/
+static struct snd_soc_dai_link msm_kona_dai_links[
+			ARRAY_SIZE(msm_common_dai_links) +
+			ARRAY_SIZE(msm_bolero_fe_dai_links) +
+			ARRAY_SIZE(msm_common_misc_fe_dai_links) +
+			ARRAY_SIZE(msm_common_be_dai_links) +
+			ARRAY_SIZE(msm_mi2s_be_dai_links) +
+			ARRAY_SIZE(msm_auxpcm_be_dai_links) +
+			ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
+			ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links) +
+			ARRAY_SIZE(msm_va_cdc_dma_be_dai_links) +
+			ARRAY_SIZE(ext_disp_be_dai_link) +
+			ARRAY_SIZE(msm_wcn_be_dai_links) +
+			ARRAY_SIZE(msm_afe_rxtx_lb_be_dai_link) +
+			ARRAY_SIZE(msm_wcn_btfm_be_dai_links)];
+#else /* VENDOR_EDIT */
+#ifdef CONFIG_SND_SOC_MAX98937
 static struct snd_soc_dai_link msm_kona_dai_links[
 			ARRAY_SIZE(msm_common_dai_links) +
 			ARRAY_SIZE(msm_bolero_fe_dai_links) +
@@ -7247,7 +7346,26 @@ static struct snd_soc_dai_link msm_kona_dai_links[
 			ARRAY_SIZE(msm_wcn_be_dai_links) +
 			ARRAY_SIZE(msm_afe_rxtx_lb_be_dai_link) +
 			ARRAY_SIZE(msm_wcn_btfm_be_dai_links) +
-			ARRAY_SIZE(msm_tdm_be_dai_links)];
+			ARRAY_SIZE(maxim_fe_dai) +
+			ARRAY_SIZE(ak43xx_be_dai_links)];
+#else
+static struct snd_soc_dai_link msm_kona_dai_links[
+			ARRAY_SIZE(msm_common_dai_links) +
+			ARRAY_SIZE(msm_bolero_fe_dai_links) +
+			ARRAY_SIZE(msm_common_misc_fe_dai_links) +
+			ARRAY_SIZE(msm_common_be_dai_links) +
+			ARRAY_SIZE(msm_mi2s_be_dai_links) +
+			ARRAY_SIZE(msm_auxpcm_be_dai_links) +
+			ARRAY_SIZE(msm_wsa_cdc_dma_be_dai_links) +
+			ARRAY_SIZE(msm_rx_tx_cdc_dma_be_dai_links) +
+			ARRAY_SIZE(msm_va_cdc_dma_be_dai_links) +
+			ARRAY_SIZE(ext_disp_be_dai_link) +
+			ARRAY_SIZE(msm_wcn_be_dai_links) +
+			ARRAY_SIZE(msm_afe_rxtx_lb_be_dai_link) +
+			ARRAY_SIZE(msm_wcn_btfm_be_dai_links) +
+			ARRAY_SIZE(ak43xx_be_dai_links)];
+#endif
+#endif /* VENDOR_EDIT */
 
 static int msm_populate_dai_link_component_of_node(
 					struct snd_soc_card *card)
@@ -7451,6 +7569,17 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	u32 auxpcm_audio_intf = 0;
 	u32 val = 0;
 	u32 wcn_btfm_intf = 0;
+	#ifdef VENDOR_EDIT
+	/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Modify for Max98928*/
+	int i;
+	const char *product_name = NULL;
+	const char *oppo_speaker_type = "oppo,speaker-pa";
+	const char *oppo_headphone_type = "oppo,headphone-pa";
+	struct snd_soc_dai_link *temp_link;
+	const char *stereo_mode_str = "oppo,speaker-stereo-mode";
+	u32 config_stereo_mode = 0;
+	#endif /* VENDOR_EDIT */
+
 	const struct of_device_id *match;
 
 	match = of_match_node(kona_asoc_machine_of_match, dev->of_node);
@@ -7459,6 +7588,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 			__func__);
 		return NULL;
 	}
+	#ifdef VENDOR_EDIT
+        /*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Add for stereo speaker*/
+        of_property_read_u32(dev->of_node, stereo_mode_str, &config_stereo_mode);
+        pr_info("%s config_stereo_mode %d\n", __func__, config_stereo_mode);
+        #endif /* VENDOR_EDIT */
 
 	if (!strcmp(match->data, "codec")) {
 		card = &snd_soc_card_kona_msm;
@@ -7509,6 +7643,105 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				__func__);
 		} else {
 			if (mi2s_audio_intf) {
+			#ifdef VENDOR_EDIT
+			/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Modify for Max98937*/
+			#if 0
+			/*zhenyu.dong@RM.MM.AudioDriver.SmartPA, 2019/11/21, Modify for using tfa98xx in link project*/
+			if (!of_property_read_string(dev->of_node, oppo_speaker_type,
+					&product_name)) {
+				pr_err("%s: custom speaker product %s\n", __func__, product_name);
+				for (i = 0; i < ARRAY_SIZE(msm_mi2s_be_dai_links); i++) {
+					temp_link = &msm_mi2s_be_dai_links[i];
+					if (temp_link->id == MSM_BACKEND_DAI_TERTIARY_MI2S_RX) {
+						#ifdef CONFIG_SND_SOC_MAX98937
+						pr_err("soc_find_component is dai_0%d\n", ((soc_find_component(NULL, maxim_be_dai_links[0].codec_name)==0)? 0:1));
+						if (!strcmp(product_name, "maxim")
+						&& soc_find_component(NULL, maxim_be_dai_links[0].codec_name)) {
+							pr_err("%s: use maxim dailink be rx replace\n", __func__);
+							memcpy(temp_link, &maxim_be_dai_links[0],
+								sizeof(maxim_be_dai_links[0]));
+						}
+						#endif
+					} else if (temp_link->id == MSM_BACKEND_DAI_TERTIARY_MI2S_TX) {
+						#ifdef CONFIG_SND_SOC_MAX98937
+						pr_err("soc_find_component is dai_1%d\n", ((soc_find_component(NULL, maxim_be_dai_links[1].codec_name)==0)? 0:1));
+						if (!strcmp(product_name, "maxim")
+						&& soc_find_component(NULL, maxim_be_dai_links[1].codec_name)) {
+							pr_err("%s: use maxim dailink be tx replace\n", __func__);
+							memcpy(temp_link, &maxim_be_dai_links[1],
+								sizeof(maxim_be_dai_links[1]));
+						}
+						#endif
+					}
+				}
+			}
+			#endif /*#if 0*/
+			if (!of_property_read_string(dev->of_node, oppo_speaker_type,
+                                                &product_name)) {
+                                        pr_info("%s: custom speaker product %s\n", __func__, product_name);
+                                        for (i = 0; i < ARRAY_SIZE(msm_mi2s_be_dai_links); i++) {
+                                                temp_link = &msm_mi2s_be_dai_links[i];
+                                                if (temp_link->id == MSM_BACKEND_DAI_TERTIARY_MI2S_RX) {
+                                                        if (!strcmp(product_name, "nxp")) {
+                                                                if (config_stereo_mode == 1) {
+                                                                        if (soc_find_component(NULL, tfa98xx_stereo_be_dai_links[0].codecs[0].name)
+                                                                                || soc_find_component(NULL, tfa98xx_stereo_be_dai_links[0].codecs[1].name)) {
+                                                                                pr_err("%s: use nxp stereo dailink replace\n", __func__);
+                                                                                pr_err("%s: use nxp stereo dailink replace before dailink is %s\n", __func__, temp_link->name);
+                                                                                memcpy(temp_link, &tfa98xx_stereo_be_dai_links[0],
+                                                                                                sizeof(tfa98xx_stereo_be_dai_links[0]));
+                                                                                break;
+                                                                        }
+                                                                        else if (soc_find_component(NULL, "tfa98xx.4-0035")
+                                                                                || soc_find_component(NULL, "tfa98xx.4-0034")) {
+                                                                                pr_err("%s: nxp component name is tfa98xx.4-0035 \n", __func__);
+
+                                                                                tfa98xx_stereo_be_dai_links[0].codecs[0].name = "tfa98xx.4-0035";
+                                                                                tfa98xx_stereo_be_dai_links[0].codecs[1].name = "tfa98xx.4-0034";
+                                                                                tfa98xx_stereo_be_dai_links[0].codecs[0].dai_name = "tfa98xx-aif-4-35";
+                                                                                tfa98xx_stereo_be_dai_links[0].codecs[1].dai_name = "tfa98xx-aif-4-34";
+                                                                                memcpy(temp_link, &tfa98xx_stereo_be_dai_links[0],
+                                                                                                sizeof(tfa98xx_stereo_be_dai_links[0]));
+                                                                                break;
+
+                                                                        }
+                                                                } else {
+                                                                        if (soc_find_component(NULL, tfa98xx_mono_be_dai_links[0].codec_name)) {
+                                                                                pr_err("%s: use nxp mono dailink replace\n", __func__);
+                                                                                memcpy(temp_link, &tfa98xx_mono_be_dai_links[0],
+                                                                                                sizeof(tfa98xx_mono_be_dai_links[0]));
+                                                                                break;
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+
+			#endif /* VENDOR_EDIT */
+
+		#ifdef VENDOR_EDIT
+		/* Xiaoke.Zhi@PSW.MM.AudioDriver.Machine, 2019/06/28,
+		 * Add for custom audio.
+		 */
+		if (!of_property_read_string(dev->of_node, oppo_headphone_type,
+				&product_name)) {
+			pr_err("%s: custom headphone product %s\n", __func__, product_name);
+			pr_err("akm soc_find_component is dai_1 is %d\n", ((soc_find_component(NULL, ak43xx_be_dai_links[0].codec_name)==0)? 0:1));
+			for (i = 0; i < ARRAY_SIZE(msm_mi2s_be_dai_links); i++) {
+				temp_link = &msm_mi2s_be_dai_links[i];
+				if (temp_link->id == MSM_BACKEND_DAI_PRI_MI2S_RX) {
+					if (!strcmp(product_name, "akm")
+						&& soc_find_component(NULL, ak43xx_be_dai_links[0].codec_name)) {
+						pr_err("%s: use akm dailink replace\n", __func__);
+						memcpy(temp_link, &ak43xx_be_dai_links[0],
+							sizeof(ak43xx_be_dai_links[0]));
+						break;
+					}
+				}
+			}
+		}
+		#endif /* VENDOR_EDIT */
 				memcpy(msm_kona_dai_links + total_links,
 					msm_mi2s_be_dai_links,
 					sizeof(msm_mi2s_be_dai_links));
@@ -7532,6 +7765,19 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 					ARRAY_SIZE(msm_auxpcm_be_dai_links);
 			}
 		}
+		#ifdef VENDOR_EDIT
+		/*Xiaoke.Zhi@PSW.MM.AudioDriver.SmartPA, 2019/06/14, Modify for Max98937*/
+		if (!of_property_read_string(dev->of_node, oppo_speaker_type, &product_name)) {
+			#ifdef CONFIG_SND_SOC_MAX98937
+			if (!strcmp(product_name, "maxim")) {
+				memcpy(msm_kona_dai_links + total_links,
+					maxim_fe_dai,
+					sizeof(maxim_fe_dai));
+				total_links += ARRAY_SIZE(maxim_fe_dai);
+			}
+			#endif
+		}
+		#endif /* VENDOR_EDIT */
 
 		rc = of_property_read_u32(dev->of_node,
 					   "qcom,ext-disp-audio-rx", &val);
@@ -7562,16 +7808,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				sizeof(msm_afe_rxtx_lb_be_dai_link));
 			total_links +=
 				ARRAY_SIZE(msm_afe_rxtx_lb_be_dai_link);
-		}
-
-		rc = of_property_read_u32(dev->of_node, "qcom,tdm-audio-intf",
-				&val);
-		if (!rc && val) {
-			memcpy(msm_kona_dai_links + total_links,
-				msm_tdm_be_dai_links,
-				sizeof(msm_tdm_be_dai_links));
-			total_links +=
-				ARRAY_SIZE(msm_tdm_be_dai_links);
 		}
 
 		rc = of_property_read_u32(dev->of_node, "qcom,wcn-btfm",
@@ -7640,14 +7876,9 @@ static int msm_wsa881x_init(struct snd_soc_component *component)
 	if (!strcmp(component->name_prefix, "SpkrLeft")) {
 		dev_dbg(component->dev, "%s: setting left ch map to codec %s\n",
 			__func__, component->name);
-		if (strnstr(component->name, "wsa883x", sizeof(component->name)))
-			wsa883x_set_channel_map(component, &spkleft_ports[0],
-					WSA881X_MAX_SWR_PORTS, &ch_mask[0],
-					&ch_rate[0], &spkleft_port_types[0]);
-		else
-			wsa881x_set_channel_map(component, &spkleft_ports[0],
-					WSA881X_MAX_SWR_PORTS, &ch_mask[0],
-					&ch_rate[0], &spkleft_port_types[0]);
+		wsa881x_set_channel_map(component, &spkleft_ports[0],
+				WSA881X_MAX_SWR_PORTS, &ch_mask[0],
+				&ch_rate[0], &spkleft_port_types[0]);
 		if (dapm->component) {
 			snd_soc_dapm_ignore_suspend(dapm, "SpkrLeft IN");
 			snd_soc_dapm_ignore_suspend(dapm, "SpkrLeft SPKR");
@@ -7655,14 +7886,9 @@ static int msm_wsa881x_init(struct snd_soc_component *component)
 	} else if (!strcmp(component->name_prefix, "SpkrRight")) {
 		dev_dbg(component->dev, "%s: setting right ch map to codec %s\n",
 			__func__, component->name);
-		if (strnstr(component->name, "wsa883x", sizeof(component->name)))
-			wsa883x_set_channel_map(component, &spkright_ports[0],
-					WSA881X_MAX_SWR_PORTS, &ch_mask[0],
-					&ch_rate[0], &spkright_port_types[0]);
-		else
-			wsa881x_set_channel_map(component, &spkright_ports[0],
-					WSA881X_MAX_SWR_PORTS, &ch_mask[0],
-					&ch_rate[0], &spkright_port_types[0]);
+		wsa881x_set_channel_map(component, &spkright_ports[0],
+				WSA881X_MAX_SWR_PORTS, &ch_mask[0],
+				&ch_rate[0], &spkright_port_types[0]);
 		if (dapm->component) {
 			snd_soc_dapm_ignore_suspend(dapm, "SpkrRight IN");
 			snd_soc_dapm_ignore_suspend(dapm, "SpkrRight SPKR");
@@ -7685,12 +7911,8 @@ static int msm_wsa881x_init(struct snd_soc_component *component)
 		}
 		pdata->codec_root = entry;
 	}
-	if (strnstr(component->name, "wsa883x", sizeof(component->name)))
-		wsa883x_codec_info_create_codec_entry(pdata->codec_root,
-						      component);
-	else
-		wsa881x_codec_info_create_codec_entry(pdata->codec_root,
-						      component);
+	wsa881x_codec_info_create_codec_entry(pdata->codec_root,
+					      component);
 err:
 	return ret;
 }
@@ -7727,24 +7949,18 @@ static int msm_aux_codec_init(struct snd_soc_component *component)
 		}
 		pdata->codec_root = entry;
 	}
-	if (!strncmp(component->driver->name, "wcd937x", 7)) {
-		wcd937x_info_create_codec_entry(pdata->codec_root, component);
+	wcd938x_info_create_codec_entry(pdata->codec_root, component);
+
+	codec_variant = wcd938x_get_codec_variant(component);
+	dev_dbg(component->dev, "%s: variant %d\n", __func__, codec_variant);
+	if (codec_variant == WCD9380)
 		ret = snd_soc_add_component_controls(component,
-					msm_int_wcd937x_snd_controls,
-					ARRAY_SIZE(msm_int_wcd937x_snd_controls));
-	} else {
-		wcd938x_info_create_codec_entry(pdata->codec_root, component);
-		codec_variant = wcd938x_get_codec_variant(component);
-		dev_dbg(component->dev, "%s: variant %d\n", __func__, codec_variant);
-		if (codec_variant == WCD9380)
-			ret = snd_soc_add_component_controls(component,
-						msm_int_wcd9380_snd_controls,
-						ARRAY_SIZE(msm_int_wcd9380_snd_controls));
-		else if (codec_variant == WCD9385)
-			ret = snd_soc_add_component_controls(component,
-						msm_int_wcd9385_snd_controls,
-						ARRAY_SIZE(msm_int_wcd9385_snd_controls));
-	}
+					msm_int_wcd9380_snd_controls,
+					ARRAY_SIZE(msm_int_wcd9380_snd_controls));
+	else if (codec_variant == WCD9385)
+		ret = snd_soc_add_component_controls(component,
+					msm_int_wcd9385_snd_controls,
+					ARRAY_SIZE(msm_int_wcd9385_snd_controls));
 
 	if (ret < 0) {
 		dev_err(component->dev, "%s: add codec specific snd controls failed: %d\n",
@@ -7757,10 +7973,7 @@ mbhc_cfg_cal:
 	if (!mbhc_calibration)
 		return -ENOMEM;
 	wcd_mbhc_cfg.calibration = mbhc_calibration;
-	if (!strncmp(component->driver->name, "wcd937x", 7))
-		ret = wcd937x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
-	else
-		ret = wcd938x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
+	ret = wcd938x_mbhc_hs_detect(component, &wcd_mbhc_cfg);
 	if (ret) {
 		dev_err(component->dev, "%s: mbhc hs detect failed, err:%d\n",
 			__func__, ret);
@@ -8068,6 +8281,10 @@ static void msm_i2s_auxpcm_init(struct platform_device *pdev)
 {
 	int count = 0;
 	u32 mi2s_master_slave[MI2S_MAX];
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	u32 mi2s_ext_mclk[MI2S_MAX];
+	#endif /* VENDOR_EDIT */
 	int ret = 0;
 
 	for (count = 0; count < MI2S_MAX; count++) {
@@ -8087,6 +8304,21 @@ static void msm_i2s_auxpcm_init(struct platform_device *pdev)
 				mi2s_master_slave[count];
 		}
 	}
+
+	#ifdef VENDOR_EDIT
+	/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+		"qcom,msm-mi2s-ext-mclk",
+		mi2s_ext_mclk, MI2S_MAX);
+	if (ret) {
+		dev_dbg(&pdev->dev, "%s: no qcom,msm-mi2s-ext-mclk in DT node\n",
+			__func__);
+	} else {
+		for (count = 0; count < MI2S_MAX; count++)
+			mi2s_intf_conf[count].msm_is_ext_mclk =
+				mi2s_ext_mclk[count];
+	}
+	#endif /* VENDOR_EDIT */
 }
 
 static void msm_i2s_auxpcm_deinit(void)
@@ -8097,6 +8329,10 @@ static void msm_i2s_auxpcm_deinit(void)
 		mutex_destroy(&mi2s_intf_conf[count].lock);
 		mi2s_intf_conf[count].ref_cnt = 0;
 		mi2s_intf_conf[count].msm_is_mi2s_master = 0;
+		#ifdef VENDOR_EDIT
+		/*Jianfeng.Qiu@PSW.MM.AudioDriver.Machine, 2019/07/03, Add for MI2S patch*/
+		mi2s_intf_conf[count].msm_is_ext_mclk = 0;
+		#endif /* VENDOR_EDIT */
 	}
 }
 
@@ -8344,11 +8580,8 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 					"qcom,quin-mi2s-gpios", 0);
 	pdata->mi2s_gpio_p[SEN_MI2S] = of_parse_phandle(pdev->dev.of_node,
 					"qcom,sen-mi2s-gpios", 0);
-	for (index = PRIM_MI2S; index < MI2S_MAX; index++) {
-		if (pdata->mi2s_gpio_p[index])
-			msm_cdc_pinctrl_set_wakeup_capable(pdata->mi2s_gpio_p[index], false);
+	for (index = PRIM_MI2S; index < MI2S_MAX; index++)
 		atomic_set(&(pdata->mi2s_gpio_ref_count[index]), 0);
-	}
 
 	/* Register LPASS audio hw vote */
 	lpass_audio_hw_vote = devm_clk_get(&pdev->dev, "lpass_audio_hw_vote");
@@ -8368,6 +8601,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 			__func__, ret);
 
 	is_initial_boot = true;
+
+#ifdef VENDOR_EDIT
+	pr_warning("%s, %d, Successfully!\n", __func__, __LINE__);
+#endif
 
 	return 0;
 err:

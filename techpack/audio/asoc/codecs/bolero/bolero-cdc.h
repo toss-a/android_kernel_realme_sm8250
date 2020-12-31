@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  */
 
 #ifndef BOLERO_CDC_H
@@ -52,8 +52,7 @@ enum {
 	BOLERO_MACRO_EVT_CLK_RESET,
 	BOLERO_MACRO_EVT_REG_WAKE_IRQ,
 	BOLERO_MACRO_EVT_RX_COMPANDER_SOFT_RST,
-	BOLERO_MACRO_EVT_BCS_CLK_OFF,
-	BOLERO_MACRO_EVT_SSR_GFMUX_UP,
+	BOLERO_MACRO_EVT_BCS_CLK_OFF
 };
 
 enum {
@@ -213,6 +212,7 @@ static int bolero_dmic_clk_enable(struct snd_soc_component *component,
 {
 	return 0;
 }
+
 static int bolero_tx_mclk_enable(struct snd_soc_component *c, bool enable)
 {
 	return 0;
