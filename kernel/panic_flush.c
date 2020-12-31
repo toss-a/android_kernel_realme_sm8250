@@ -63,18 +63,11 @@ repeat:
 }
 
 extern bool is_fulldump_enable(void);
-#ifdef CONFIG_F2FS_FS
-extern bool of2fs_fsync_nobarrier_enable(void);
-#endif
 static inline bool need_flush_device_cache(void)
 {
 	if (is_fulldump_enable())
 		return false;
-#ifdef CONFIG_F2FS_FS
-	return of2fs_fsync_nobarrier_enable();
-#else
 	return false;
-#endif
 }
 
 int panic_flush_device_cache(int timeout)
