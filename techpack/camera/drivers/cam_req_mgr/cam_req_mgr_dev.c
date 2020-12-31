@@ -25,7 +25,12 @@
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
 
+#ifdef VENDOR_EDIT
+//zhangzhengrong@camera modify for kernel event Q overlow issue case04395272
+#define CAM_REQ_MGR_EVENT_MAX 80
+#else
 #define CAM_REQ_MGR_EVENT_MAX 30
+#endif
 
 static struct cam_req_mgr_device g_dev;
 struct kmem_cache *g_cam_req_mgr_timer_cachep;
@@ -521,30 +526,6 @@ static long cam_private_ioctl(struct file *file, void *fh,
 		rc = cam_req_mgr_link_control(&cmd);
 		if (rc)
 			rc = -EINVAL;
-		}
-		break;
-	case CAM_REQ_MGR_REQUEST_DUMP: {
-		struct cam_dump_req_cmd cmd;
-
-		if (k_ioctl->size != sizeof(cmd))
-			return -EINVAL;
-
-		if (copy_from_user(&cmd,
-			u64_to_user_ptr(k_ioctl->handle),
-			sizeof(struct cam_dump_req_cmd))) {
-			rc = -EFAULT;
-			break;
-		}
-		rc = cam_req_mgr_dump_request(&cmd);
-		if (rc) {
-			CAM_ERR(CAM_CORE, "dump fail for dev %d req %llu rc %d",
-				cmd.dev_handle, cmd.issue_req_id, rc);
-			break;
-		}
-		if (copy_to_user(
-			u64_to_user_ptr(k_ioctl->handle),
-			&cmd, sizeof(struct cam_dump_req_cmd)))
-			rc = -EFAULT;
 		}
 		break;
 	default:
