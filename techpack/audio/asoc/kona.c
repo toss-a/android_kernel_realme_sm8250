@@ -3526,6 +3526,38 @@ static int msm_bt_sample_rate_rx_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef VENDOR_EDIT
+/* Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDAC 2019/07/08,
+ * Add for no sound when ap suspend in call.
+ */
+static int ak4376_audrx_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_component *component = NULL;
+	struct snd_soc_dapm_context *dapm = NULL;
+	struct snd_soc_dai *codec_dai = NULL;
+	codec_dai = rtd->codec_dai;
+	component = codec_dai->component;
+
+	if (!component) {
+		pr_err("%s: could not find component for bolero_codec\n",
+			__func__);
+		return 0;
+	}
+
+	dapm = snd_soc_component_get_dapm(component);
+
+	pr_info("%s() dev_name %s\n", __func__, dev_name(codec_dai->dev));
+
+	snd_soc_dapm_ignore_suspend(dapm, "AK4376 HPL");
+	snd_soc_dapm_ignore_suspend(dapm, "AK4376 HPR");
+	snd_soc_dapm_ignore_suspend(dapm, "Playback");
+
+	snd_soc_dapm_sync(dapm);
+
+	return 0;
+}
+#endif /* VENDOR_EDIT */
+
 static int msm_bt_sample_rate_tx_get(struct snd_kcontrol *kcontrol,
 				     struct snd_ctl_elem_value *ucontrol)
 {
@@ -5611,6 +5643,29 @@ static void *def_wcd_mbhc_cal(void)
 
 	return wcd_mbhc_cal;
 }
+
+#ifdef VENDOR_EDIT
+/* Jianfeng.Qiu@PSW.MM.AudioDriver.HeadsetDAC, 2017/09/21, Add for ak43xx */
+static struct snd_soc_dai_link ak43xx_be_dai_links[] = {
+	{
+		.name = LPASS_BE_SEC_MI2S_RX,
+		.stream_name = "Secondary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.1",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "ak4376.2-0010",
+		.codec_dai_name = "ak4376-AIF1",
+		.init = ak4376_audrx_init,
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+	},
+};
+#endif /* VENDOR_EDIT */
+
 
 /* Digital audio interface glue - connects codec <---> CPU */
 static struct snd_soc_dai_link msm_common_dai_links[] = {
