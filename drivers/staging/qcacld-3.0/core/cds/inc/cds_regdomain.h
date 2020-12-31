@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011, 2014-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -66,7 +66,7 @@
 #include <reg_services_public_struct.h>
 
 #define MIN_TX_PWR_CAP    8
-#define MAX_TX_PWR_CAP    24
+#define MAX_TX_PWR_CAP    30
 
 #define CTRY_DEFAULT          0
 #define CTRY_FLAG             0x8000
@@ -258,6 +258,11 @@ enum country_code {
 	CTRY_JAPAN48 = 4048,
 	CTRY_JAPAN55 = 4055,
 	CTRY_JAPAN60 = 4060,
+	//#ifdef VENDOR_EDIT
+	//#Jian.Wang@PSW.CN.WiFi.Basic.SoftAp.1561156, 2018/09/29, add for new country Code MM.
+	CTRY_MYANMAR = 4061,
+	CTRY_PILIPLNAS = 4062,
+	//#endif /* VENDOR_EDIT *
 	CTRY_XA = 4100,
 };
 

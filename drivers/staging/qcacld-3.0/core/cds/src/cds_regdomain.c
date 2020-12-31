@@ -229,6 +229,11 @@ static const struct country_code_to_reg_dmn g_all_countries[] = {
 	{CTRY_MONACO, ETSI1_WORLD, "MC", "MONACO"},
 	{CTRY_MONGOLIA, FCC3_WORLD, "MN", "MONGOLIA"},
 	{CTRY_MONTENEGRO, ETSI1_WORLD, "ME", "MONTENEGRO"},
+	//#ifdef VENDOR_EDIT
+	//#Jian.Wang@PSW.CN.WiFi.Basic.SoftAp.1561156, 2018/09/29, add for new country Code MM.
+	{CTRY_MYANMAR, FCC8_FCCA, "MM", "MYANMAR"},
+	{CTRY_PILIPLNAS, FCC8_FCCA, "PH", "PILIPLNAS"},
+	//#endif /* VENDOR_EDIT */
 	{CTRY_MOROCCO, ETSI3_WORLD, "MA", "MOROCCO"},
 	{CTRY_NAMIBIA, APL20_WORLD, "NA", "NAMIBIA"},
 	{CTRY_NEPAL, APL23_WORLD, "NP", "NEPAL"},

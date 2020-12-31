@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -937,7 +937,7 @@ static __iw_softap_setparam(struct net_device *dev,
 		if (wlan_reg_is_dfs_ch(pdev, ch))
 			tgt_dfs_process_radar_ind(pdev, &radar);
 		else
-			hdd_debug("Ignore set radar, op ch(%d) is not dfs", ch);
+			hdd_err("Ignore set radar, op ch(%d) is not dfs", ch);
 
 		break;
 	}
@@ -1524,6 +1524,145 @@ int iw_softap_modify_acl(struct net_device *dev,
 
 	return errno;
 }
+
+#ifdef VENDOR_EDIT
+//Xiao.Liang@PSW.CN.WiFi.Basic.Softap.1190360, 2018/12/13
+//Add for: hotspot management
+#ifndef MAC_ADDRESS_STR
+#define MAC_ADDRESS_STR "%02x:%02x:%02x:%02x:%02x:%02x"
+#endif /* MAC_ADDRESS_STR */
+#ifndef MAC_ADDR_ARRAY
+#define MAC_ADDR_ARRAY(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
+#endif /* MAC_ADDR_ARRAY */
+
+static
+int __oppo_iw_softap_modify_acl(struct net_device *dev,
+			   struct iw_request_info *info,
+			   union iwreq_data *wrqu, char *extra)
+{
+	struct hdd_adapter *adapter = (netdev_priv(dev));
+	uint8_t *value = (uint8_t *) extra;
+	uint8_t pPeerStaMac[QDF_MAC_ADDR_SIZE];
+	int listType, cmd, i;
+	int ret;
+	QDF_STATUS qdf_status = QDF_STATUS_SUCCESS;
+	struct hdd_context *hdd_ctx;
+
+	hdd_enter_dev(dev);
+
+	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+	ret = wlan_hdd_validate_context(hdd_ctx);
+	if (0 != ret)
+		return ret;
+
+	for (i = 0; i < QDF_MAC_ADDR_SIZE; i++)
+		pPeerStaMac[i] = *(value + i);
+
+	listType = (int)(*(value + i));
+	i++;
+	cmd = (int)(*(value + i));
+
+	hdd_debug("Modify ACL mac:" MAC_ADDRESS_STR " type: %d cmd: %d",
+	       MAC_ADDR_ARRAY(pPeerStaMac), listType, cmd);
+
+	qdf_status = wlansap_modify_acl(
+		WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+		pPeerStaMac, (eSapACLType) listType, (eSapACLCmdType) cmd);
+	if (!QDF_IS_STATUS_SUCCESS(qdf_status)) {
+		hdd_err("Modify ACL failed");
+		ret = -EIO;
+	}
+	hdd_exit();
+	return ret;
+}
+
+int
+static __oppo_iw_softap_setparam(struct net_device *dev,
+			    struct iw_request_info *info,
+			    union iwreq_data *wrqu, char *extra)
+{
+	struct hdd_adapter *adapter = (netdev_priv(dev));
+	int *value = (int *)extra;
+	int sub_cmd = value[0];
+	int set_value = value[1];
+	QDF_STATUS status;
+	int ret = 0;
+	struct hdd_context *hdd_ctx;
+
+	hdd_enter_dev(dev);
+
+	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
+	ret = wlan_hdd_validate_context(hdd_ctx);
+	if (0 != ret)
+		return -EINVAL;
+
+	switch (sub_cmd) {
+	case QCSAP_PARAM_MAX_ASSOC:
+		if (WNI_CFG_ASSOC_STA_LIMIT_STAMIN > set_value) {
+			hdd_err("Invalid setMaxAssoc value %d",
+			       set_value);
+			ret = -EINVAL;
+		} else {
+			if (WNI_CFG_ASSOC_STA_LIMIT_STAMAX < set_value) {
+				hdd_warn("setMaxAssoc %d > max allowed %d.",
+				       set_value,
+				       WNI_CFG_ASSOC_STA_LIMIT_STAMAX);
+				hdd_warn("Setting it to max allowed and continuing");
+				set_value = WNI_CFG_ASSOC_STA_LIMIT_STAMAX;
+			}
+			status = ucfg_mlme_set_assoc_sta_limit(hdd_ctx->psoc, set_value);
+			if (status != QDF_STATUS_SUCCESS) {
+				hdd_err("setMaxAssoc failure, status: %d",
+				       status);
+				ret = -EIO;
+			}
+		}
+		break;
+
+	default:
+		hdd_err("Invalid setparam command %d value %d",
+		       sub_cmd, set_value);
+		ret = -EINVAL;
+		break;
+	}
+	hdd_exit();
+	return ret;
+}
+
+//Laixin@PSW.CN.WiFi.Basic.Softap.1190360, 2018/03/06
+//Add for: hotspot manager
+int oppo_wlan_hdd_modify_acl(struct net_device *dev, char *extra)
+{
+	int errno;
+	struct osif_vdev_sync *vdev_sync;
+
+	errno = osif_vdev_sync_op_start(dev, &vdev_sync);
+	if (errno)
+		return errno;
+
+	errno = __oppo_iw_softap_modify_acl(dev, NULL, NULL, extra);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return errno;
+}
+
+int oppo_wlan_hdd_set_max_assoc(struct net_device *dev, char* extra)
+{
+	int errno;
+	struct osif_vdev_sync *vdev_sync;
+
+	errno = osif_vdev_sync_op_start(dev, &vdev_sync);
+	if (errno)
+		return errno;
+
+	errno = __oppo_iw_softap_setparam(dev, NULL, NULL, extra);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return errno;
+}
+#endif /* VENDOR_EDIT */
 
 int
 static __iw_softap_getchannel(struct net_device *dev,
@@ -2925,7 +3064,7 @@ static const struct iw_priv_args hostapd_private_args[] = {
 	}, {
 		QCASAP_PARAM_LDPC,
 		IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
-		0, "ldpc"
+		0, "set_ldpc"
 	}, {
 		QCASAP_PARAM_TX_STBC,
 		IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,

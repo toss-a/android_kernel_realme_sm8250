@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -376,7 +376,7 @@ static int __wlan_hdd_cfg80211_process_ndp_cmd(struct wiphy *wiphy,
 	}
 
 	if (!WLAN_HDD_IS_NDP_ENABLED(hdd_ctx)) {
-		hdd_debug("NAN datapath is not enabled");
+		hdd_err_rl("NAN datapath is not enabled");
 		return -EPERM;
 	}
 
@@ -666,7 +666,6 @@ void hdd_ndi_drv_ndi_create_rsp_handler(uint8_t vdev_id,
 	struct csr_roam_info *roam_info;
 	struct bss_description tmp_bss_descp = {0};
 	uint16_t ndp_inactivity_timeout = 0;
-	uint16_t ndp_keep_alive_period;
 	struct qdf_mac_addr bc_mac_addr = QDF_MAC_ADDR_BCAST_INIT;
 	uint8_t sta_id;
 
@@ -714,14 +713,6 @@ void hdd_ndi_drv_ndi_create_rsp_handler(uint8_t vdev_id,
 		sme_cli_set_command(adapter->vdev_id,
 				    WMI_VDEV_PARAM_NDP_INACTIVITY_TIMEOUT,
 				    ndp_inactivity_timeout, VDEV_CMD);
-
-		if (QDF_IS_STATUS_SUCCESS(cfg_nan_get_ndp_keepalive_period(
-						hdd_ctx->psoc,
-						&ndp_keep_alive_period)))
-			sme_cli_set_command(
-				adapter->vdev_id,
-				WMI_VDEV_PARAM_NDP_KEEPALIVE_TIMEOUT,
-				ndp_keep_alive_period, VDEV_CMD);
 	} else {
 		hdd_alert("NDI interface creation failed with reason %d",
 			ndi_rsp->reason /* create_reason */);
@@ -836,6 +827,11 @@ int hdd_ndp_new_peer_handler(uint8_t vdev_id, uint16_t sta_id,
 		return -EINVAL;
 	}
 
+	if (sta_id >= HDD_MAX_ADAPTERS) {
+		hdd_err("Error: Invalid sta_id: %u", sta_id);
+		return -EINVAL;
+	}
+
 	/* save peer in ndp ctx */
 	if (false == hdd_save_peer(sta_ctx, sta_id, peer_mac_addr)) {
 		hdd_err("Ndp peer table full. cannot save new peer");
@@ -862,25 +858,6 @@ int hdd_ndp_new_peer_handler(uint8_t vdev_id, uint16_t sta_id,
 	qdf_mem_free(roam_info);
 	hdd_exit();
 	return 0;
-}
-
-void hdd_cleanup_ndi(struct hdd_context *hdd_ctx,
-		     struct hdd_adapter *adapter)
-{
-	struct hdd_station_ctx *sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(adapter);
-
-	if (sta_ctx->conn_info.conn_state != eConnectionState_NdiConnected) {
-		hdd_debug("NDI has no NDPs");
-		return;
-	}
-	sta_ctx->conn_info.conn_state = eConnectionState_NdiDisconnected;
-	hdd_conn_set_connection_state(adapter,
-		eConnectionState_NdiDisconnected);
-	hdd_info("Stop netif tx queues.");
-	wlan_hdd_netif_queue_control(adapter, WLAN_STOP_ALL_NETIF_QUEUE,
-				     WLAN_CONTROL_PATH);
-	hdd_bus_bw_compute_reset_prev_txrx_stats(adapter);
-	hdd_bus_bw_compute_timer_try_stop(hdd_ctx);
 }
 
 /**
@@ -917,13 +894,25 @@ void hdd_ndp_peer_departed_handler(uint8_t vdev_id, uint16_t sta_id,
 		return;
 	}
 
+	if (sta_id >= HDD_MAX_ADAPTERS) {
+		hdd_err("Error: Invalid sta_id: %u", sta_id);
+		return;
+	}
+
 	hdd_roam_deregister_sta(adapter, sta_id);
 	hdd_delete_peer(sta_ctx, sta_id);
 	hdd_ctx->sta_to_adapter[sta_id] = NULL;
 
 	if (last_peer) {
 		hdd_info("No more ndp peers.");
-		hdd_cleanup_ndi(hdd_ctx, adapter);
+		sta_ctx->conn_info.conn_state = eConnectionState_NdiDisconnected;
+		hdd_conn_set_connection_state(adapter,
+			eConnectionState_NdiDisconnected);
+		hdd_info("Stop netif tx queues.");
+		wlan_hdd_netif_queue_control(adapter, WLAN_STOP_ALL_NETIF_QUEUE,
+					     WLAN_CONTROL_PATH);
+		hdd_bus_bw_compute_reset_prev_txrx_stats(adapter);
+		hdd_bus_bw_compute_timer_try_stop(hdd_ctx);
 	}
 
 	hdd_exit();

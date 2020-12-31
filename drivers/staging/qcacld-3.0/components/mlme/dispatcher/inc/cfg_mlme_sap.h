@@ -281,14 +281,26 @@
  *
  * </ini>
  */
- #define CFG_SAP_MAX_NO_PEERS CFG_INI_UINT( \
+ //ifdef VENDOR_EDIT
+ //Tao.Hui@PSW.CN.WiFi.Basic.custom.1047595, 2019/9/15,
+ //Modify for set default SoftAP client count to 8
+ /*#define CFG_SAP_MAX_NO_PEERS CFG_INI_UINT( \
 			"gSoftApMaxPeers", \
 			1, \
 			32, \
 			32, \
 			CFG_VALUE_OR_DEFAULT, \
 			"max no of peers")
-
+ */
+ //else
+ #define CFG_SAP_MAX_NO_PEERS CFG_INI_UINT( \
+			"gSoftApMaxPeers", \
+			1, \
+			32, \
+			10, \
+			CFG_VALUE_OR_DEFAULT, \
+			"max no of peers")
+//endif /* VENDOR_EDIT */
 /*
  * <ini>
  * gMaxOffloadPeers - Set max offload peers

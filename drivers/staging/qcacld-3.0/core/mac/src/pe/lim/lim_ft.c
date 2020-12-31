@@ -76,7 +76,7 @@ void lim_ft_cleanup(struct mac_context *mac, struct pe_session *pe_session)
 
 	/* Nothing to be done if the session is not in STA mode */
 	if (!LIM_IS_STA_ROLE(pe_session)) {
-		pe_debug("pe_session is not in STA mode");
+		pe_err("pe_session is not in STA mode");
 		return;
 	}
 
@@ -306,12 +306,6 @@ void lim_ft_prepare_add_bss_req(struct mac_context *mac,
 			  SIR_MAC_VHT_CAP_RESERVED2));
 	} else {
 		pAddBssParams->vhtCapable = 0;
-	}
-
-	if (lim_is_session_he_capable(ft_session) &&
-	    pBeaconStruct->he_cap.present) {
-		lim_update_bss_he_capable(mac, pAddBssParams);
-		lim_add_bss_he_cfg(pAddBssParams, ft_session);
 	}
 
 	pe_debug("SIR_HAL_ADD_BSS_REQ with channel: %d",

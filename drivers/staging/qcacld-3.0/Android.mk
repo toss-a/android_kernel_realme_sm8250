@@ -66,7 +66,13 @@ CMN_OFFSET := ..
 LOCAL_SRC_DIR :=
 WLAN_PROFILE := default
 TARGET_FW_DIR := firmware/wlan/qca_cld
-TARGET_CFG_PATH := /vendor/etc/wifi
+#ifndef VENDOR_EDIT
+#Mengqing.Zhao@PSW.CN.Wifi.Network.internet.1074197, 2019/11/27,
+#Modify for WCNSS_qcom_cfg.ini Rom-update on 8250,fix bug2614556
+#TARGET_CFG_PATH := /vendor/etc/wifi
+# else /* VENDOR_EDIT */
+TARGET_CFG_PATH := /mnt/vendor/persist/wlan/qca_cld
+#endif /* VENDOR_EDIT */
 TARGET_MAC_BIN_PATH := /mnt/vendor/persist
 
 else
@@ -153,6 +159,13 @@ $(shell mkdir -p $(TARGET_FW_PATH); \
 	ln -sf $(TARGET_CFG_PATH)/WCNSS_qcom_cfg.ini $(TARGET_FW_PATH)/WCNSS_qcom_cfg.ini)
 
 endif # Multi-ko check
+
+#Guotian.Wu@PSW.CN.WiFi.Basic.Crash.1357984, 2018/10/24,
+#Add for enable Self Recovery for crash in release version
+ifeq ($(TARGET_BUILD_VARIANT),user)
+LOCAL_CFLAGS += -DENABLE_SELFRECORVERY
+endif
+
 endif # DLKM check
 endif # supported target check
 endif # WLAN enabled check

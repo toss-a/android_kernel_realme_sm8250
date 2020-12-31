@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -897,7 +897,9 @@ QDF_STATUS sme_qos_csr_event_ind(struct mac_context *mac,
 {
 	QDF_STATUS status = QDF_STATUS_E_FAILURE;
 
-	sme_debug("On Session %d Event %d received from CSR", sessionId, ind);
+	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+		  "%s: %d: On Session %d Event %d received from CSR",
+		  __func__, __LINE__, sessionId, ind);
 	switch (ind) {
 	case SME_QOS_CSR_ASSOC_COMPLETE:
 		/* expecting assoc info in pEvent_info */
@@ -955,11 +957,14 @@ QDF_STATUS sme_qos_csr_event_ind(struct mac_context *mac,
 		break;
 	default:
 		/* Err msg */
-		sme_err("On Session %d Unknown Event %d received from CSR",
-			sessionId, ind);
+		QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_ERROR,
+			  "%s: %d: On Session %d Unknown Event %d received from CSR",
+			  __func__, __LINE__, sessionId, ind);
 		break;
 	}
-
+	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+		  "%s: %d: On Session %d processed Event %d with status %d",
+		  __func__, __LINE__, sessionId, ind, status);
 	return status;
 }
 
@@ -3354,7 +3359,7 @@ static void sme_qos_fill_aggr_info(int ac_id, int ts_id,
 				   tSirAggrQosReq *msg,
 				   struct sme_qos_sessioninfo *session)
 {
-	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_WARN,
 		  FL("Found tspec entry AC=%d, flow=%d, direction = %d"),
 		  ac_id, ts_id, direction);
 
@@ -3446,7 +3451,7 @@ static QDF_STATUS sme_qos_ft_aggr_qos_req(struct mac_context *mac_ctx, uint8_t
 		}
 	}
 
-	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_INFO,
 		  FL("Sending aggregated message to HAL 0x%x"),
 		  aggr_req->aggrInfo.tspecIdx);
 
@@ -4916,15 +4921,21 @@ static QDF_STATUS sme_qos_process_join_req_ev(struct mac_context *mac, uint8_t
 	struct sme_qos_sessioninfo *pSession;
 	enum qca_wlan_ac_type ac;
 
+	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+		  "%s: %d: invoked on session %d",
+		  __func__, __LINE__, sessionId);
 	pSession = &sme_qos_cb.sessionInfo[sessionId];
 	if (pSession->handoffRequested) {
-		sme_debug("No need for state transition, should already be in handoff state");
+		QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+			  "%s: %d: no need for state transition, should already be in handoff state",
+			__func__, __LINE__);
 		if ((pSession->ac_info[0].curr_state != SME_QOS_HANDOFF) ||
 		    (pSession->ac_info[1].curr_state != SME_QOS_HANDOFF) ||
 		    (pSession->ac_info[2].curr_state != SME_QOS_HANDOFF) ||
 		    (pSession->ac_info[3].curr_state != SME_QOS_HANDOFF))
-			sme_err("curr_state is not HANDOFF, session %d",
-				sessionId);
+			QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_ERROR,
+				FL("curr_state is not HANDOFF, session %d"),
+					 sessionId);
 		/* buffer the existing flows to be renewed after handoff is
 		 * done
 		 */
@@ -5775,10 +5786,10 @@ static void sme_qos_state_transition(uint8_t sessionId,
 	pACInfo = &pSession->ac_info[ac];
 	pACInfo->prev_state = pACInfo->curr_state;
 	pACInfo->curr_state = new_state;
-	if (pACInfo->curr_state != pACInfo->prev_state)
-		sme_debug("On session %d new %d old %d, for AC %d",
-			  sessionId, pACInfo->curr_state,
-			  pACInfo->prev_state, ac);
+	QDF_TRACE(QDF_MODULE_ID_SME, QDF_TRACE_LEVEL_DEBUG,
+		  "%s: %d: On session %d new state=%d, old state=%d, for AC=%d",
+		  __func__, __LINE__,
+		  sessionId, pACInfo->curr_state, pACInfo->prev_state, ac);
 }
 
 /**

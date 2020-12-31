@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -86,17 +86,6 @@ static struct __qdf_device g_qdf_ctx;
 static uint8_t cds_multicast_logging;
 
 #ifdef QCA_WIFI_QCA8074
-static inline int
-cds_send_delba(void *pdev_handle,  void *ctrl_peer,
-	       uint8_t *peer_macaddr, uint8_t tid, void *vdev_handle,
-	       uint8_t reason_code)
-{
-	struct wlan_objmgr_vdev *vdev = (struct wlan_objmgr_vdev *)vdev_handle;
-
-	return wma_dp_send_delba_ind(wlan_vdev_get_id(vdev), peer_macaddr, tid,
-				     reason_code);
-}
-
 static struct ol_if_ops  dp_ol_if_ops = {
 	.peer_set_default_routing = target_if_peer_set_default_routing,
 	.peer_rx_reorder_queue_setup = target_if_peer_rx_reorder_queue_setup,
@@ -106,8 +95,7 @@ static struct ol_if_ops  dp_ol_if_ops = {
 	.rx_mic_error = wma_rx_mic_error_ind,
 	.rx_invalid_peer = wma_rx_invalid_peer_ind,
 	.is_roam_inprogress = wma_is_roam_in_progress,
-	.get_con_mode = cds_get_conparam,
-	.send_delba = cds_send_delba,
+	.get_con_mode = cds_get_conparam
     /* TODO: Add any other control path calls required to OL_IF/WMA layer */
 };
 #else
@@ -242,7 +230,6 @@ QDF_STATUS cds_init(void)
 
 	qdf_register_self_recovery_callback(__cds_trigger_recovery);
 	qdf_register_fw_down_callback(cds_is_fw_down);
-	qdf_register_is_driver_unloading_callback(cds_is_driver_unloading);
 	qdf_register_recovering_state_query_callback(cds_is_driver_recovering);
 	qdf_register_drv_connected_callback(cds_is_drv_connected);
 	qdf_register_wmi_send_recv_qmi_callback(cds_wmi_send_recv_qmi);
@@ -269,7 +256,6 @@ void cds_deinit(void)
 
 	qdf_register_recovering_state_query_callback(NULL);
 	qdf_register_fw_down_callback(NULL);
-	qdf_register_is_driver_unloading_callback(NULL);
 	qdf_register_self_recovery_callback(NULL);
 	qdf_register_wmi_send_recv_qmi_callback(NULL);
 
@@ -397,7 +383,7 @@ static void cds_cdp_cfg_attach(struct wlan_objmgr_psoc *psoc)
 	gp_cds_context->cfg_ctx = cdp_cfg_attach(soc, gp_cds_context->qdf_ctx,
 					(void *)(&cdp_cfg));
 	if (!gp_cds_context->cfg_ctx) {
-		WMA_LOGD("%s: failed to init cfg handle", __func__);
+		WMA_LOGP("%s: failed to init cfg handle", __func__);
 		return;
 	}
 
@@ -1121,7 +1107,7 @@ QDF_STATUS cds_post_disable(void)
 	 * - Clean up CE tasklets.
 	 */
 
-	cds_debug("send deinit sequence to firmware");
+	cds_info("send deinit sequence to firmware");
 	if (!(cds_is_driver_recovering() || cds_is_driver_in_bad_state()))
 		cds_suspend_target(wma_handle);
 	hif_disable_isr(hif_ctx);
@@ -1194,6 +1180,11 @@ QDF_STATUS cds_close(struct wlan_objmgr_psoc *psoc)
 	}
 
 	gp_cds_context->mac_context = NULL;
+	/*
+	 * Call this before cdp soc detatch as it used the cdp soc to free the
+	 * cdp vdev if any.
+	 */
+	wma_release_pending_vdev_refs();
 
 	cdp_soc_detach(gp_cds_context->dp_soc);
 	gp_cds_context->dp_soc = NULL;
@@ -1664,9 +1655,6 @@ QDF_STATUS cds_get_vdev_types(enum QDF_OPMODE mode, uint32_t *type,
 		break;
 	case QDF_NDI_MODE:
 		*type = WMI_VDEV_TYPE_NDI;
-		break;
-	case QDF_NAN_DISC_MODE:
-		*type = WMI_VDEV_TYPE_NAN;
 		break;
 	default:
 		cds_err("Invalid device mode %d", mode);
@@ -2374,7 +2362,7 @@ QDF_STATUS cds_flush_logs(uint32_t is_fatal,
 		  is_fatal, indicator, reason_code);
 
 	if (dump_mac_trace)
-		qdf_trace_dump_all(p_cds_context->mac_context, 0, 0, 100, 0);
+		qdf_trace_dump_all(p_cds_context->mac_context, 0, 0, 500, 0);
 
 	if (WLAN_LOG_INDICATOR_HOST_ONLY == indicator) {
 		cds_wlan_flush_host_logs_for_fatal();

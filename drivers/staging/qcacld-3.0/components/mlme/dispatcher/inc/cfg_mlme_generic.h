@@ -335,10 +335,27 @@
  *
  * </ini>
  */
+//Guotian.Wu@PSW.CN.WiFi.Basic.Crash.1357984, 2018/10/24,
+//Add for enable Self Recovery for crash in release version
+#ifndef VENDOR_EDIT
 #define CFG_ENABLE_SELF_RECOVERY CFG_INI_BOOL( \
 	"gEnableSelfRecovery", \
 	0, \
 	"Enable Self Recovery")
+#else
+#ifndef ENABLE_SELFRECORVERY
+#define CFG_ENABLE_SELF_RECOVERY CFG_INI_BOOL( \
+	"gEnableSelfRecovery", \
+	0, \
+	"Enable Self Recovery")
+#else
+#define CFG_ENABLE_SELF_RECOVERY CFG_INI_BOOL( \
+	"gEnableSelfRecovery", \
+	1, \
+	"Enable Self Recovery")
+#endif  /*ENABLE_SELFRECORVERY */
+#endif  /* VENDOR_EDIT */
+
 
 /*
  * <ini>
@@ -582,7 +599,7 @@
  * gRemoveTimeStampSyncCmd - Enable/Disable to remove time stamp sync cmd
  * @Min: 0
  * @Max: 1
- * @Default: 0
+ * @Default: 1
  *
  * This ini is used to enable/disable the removal of time stamp sync cmd
  *
@@ -592,7 +609,7 @@
  */
 #define CFG_REMOVE_TIME_STAMP_SYNC_CMD CFG_INI_BOOL( \
 	"gRemoveTimeStampSyncCmd", \
-	0, \
+	1, \
 	"Enable to remove time stamp sync cmd")
 
 /*

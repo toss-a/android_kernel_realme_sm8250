@@ -38,4 +38,11 @@ static inline void hdd_register_hostapd_wext(struct net_device *dev)
 }
 #endif
 
+#ifdef VENDOR_EDIT
+//Laixin@PSW.CN.WiFi.Basic.Softap.1190360, 2018/03/06
+//Add for: hotspot manager
+int oppo_wlan_hdd_modify_acl(struct net_device *dev, char* extra);
+int oppo_wlan_hdd_set_max_assoc(struct net_device *dev, char* extra);
+#endif /* VENDOR_EDIT */
+
 #endif /* end #ifndef WLAN_HDD_HOSTAPD_H */
