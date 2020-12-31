@@ -12,8 +12,6 @@ else ifeq ($(shell echo $(TARGET_PRODUCT) | sed -e 's/_1.*//g'),full_oppo6779)
 DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=6779
 else ifeq ($(shell echo $(TARGET_PRODUCT) | sed -e 's/_1.*//g'),full_oppo6885)
 DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=6885
-else ifeq ($(shell echo $(TARGET_PRODUCT) | sed -e 's/_1.*//g'),full_oppo6873)
-DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=6873
 else ifeq ($(TARGET_PRODUCT),sdm710)
 DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=710
 else ifeq ($(TARGET_PRODUCT),msmnile)

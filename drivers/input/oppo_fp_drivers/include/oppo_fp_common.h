@@ -70,7 +70,6 @@ typedef enum {
     FP_SILEAD_OPTICAL_70 = 13,
     FP_FPC_1023_GLASS = 14,
     FP_EGIS_OPTICAL_ET713 = 15,
-    FP_GOODIX_3626 = 16,
     FP_UNKNOWN,
 } fp_vendor_t;
 
