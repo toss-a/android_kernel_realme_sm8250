@@ -1,3 +1,4 @@
+TARGET_PRODUCT := kona
 ifeq ($(TARGET_PRODUCT),sdm660_64)
 DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=660
 else ifeq ($(TARGET_PRODUCT),msm8953_64)
@@ -26,11 +27,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_export_inc
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/module
 else ifeq ($(shell echo $(TARGET_PRODUCT) | sed -e 's/_1.*//g'),full_oppo6889)
 DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=6885
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_inc
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_export_inc
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/module
-else ifeq ($(shell echo $(TARGET_PRODUCT) | sed -e 's/_1.*//g'),full_oppo6873)
-DEFS_PLATFORM = -DCONFIG_OPPO_FINGERPRINT_PLATFORM=6873
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_inc
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/asf_export_inc
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/masp/asfv2/module
