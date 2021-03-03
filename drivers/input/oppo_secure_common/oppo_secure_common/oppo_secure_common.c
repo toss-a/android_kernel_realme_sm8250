@@ -8,31 +8,18 @@
  **
  ** Version: 1.0
  ** Date created: 18:03:11,02/11/2017
- ** Author: Ziqing.guo@Prd.BaseDrv
  **
- ** --------------------------- Revision History: --------------------------------
- **  <author>         <data>         <desc>
- **  Bin.Li         2017/11/17     create the file
- **  Bin.Li         2017/11/18     add for mt6771
- **  Ziqing.guo     2018/03/12     fix the problem for coverity CID 16731
- **  Hongdao.yu     2018/05/01     remove fp engineering mode
- **  Ping.Liu       2018/06/22     compatible with SDM670/SDM710.
- **  Long.Liu       2018/11/23     compatible with P80
- **  oujinrong      2018/12/29     compatible with SDM855
- **  oujinrong      2018/01/08     fix stage 1 machine with apdp boot failed
- **  oujinrong      2018/03/16     fix stage 2 machine boot failed
- **  Dongnan.Wu     2019/06/12     add 7150 platform support
- **  Ping.Liu       2019/10/16     add 7250 platform support.
  ************************************************************************************/
 
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 
-#if CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6763 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6771 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6779 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6885
-#include <sec_boot_lib.h>
+#if CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6763 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6771 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6779 \
+|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6885
+/*#include <sec_boot_lib.h>*/
 #include <linux/uaccess.h>
 #elif CONFIG_OPPO_BSP_SECCOM_PLATFORM == 855 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6125 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7150 \
-|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250
+|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7125
 #include <linux/soc/qcom/smem.h>
 #else
 #include <soc/qcom/smem.h>
@@ -44,7 +31,7 @@
 #include <linux/of_gpio.h>
 
 #if CONFIG_OPPO_BSP_SECCOM_PLATFORM == 855 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6125 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7150 \
-|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250
+|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7125
 #include <linux/uaccess.h>
 #else
 #include <asm/uaccess.h>
@@ -52,7 +39,8 @@
 
 #include <linux/delay.h>
 #include <linux/string.h>
-#include "../include/oppo_secure_common.h"
+#include <linux/err.h>
+#include "oppo_secure_common.h"
 
 #define OEM_FUSE_OFF        "0"
 #define OEM_FUSE_ON         "1"
@@ -75,6 +63,12 @@
 #elif CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6125
 #define OEM_SEC_BOOT_REG 0x1B40458
 #define OEM_SEC_ENABLE_ANTIROLLBACK_REG 0x1B401CC
+#define OEM_SEC_OVERRIDE_1_REG 0x7860C0
+#define OEM_OVERRIDE_1_ENABLED_VALUE 0x1
+
+#elif CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7125
+#define OEM_SEC_BOOT_REG 0x780498
+#define OEM_SEC_ENABLE_ANTIROLLBACK_REG 0x7801CC
 #define OEM_SEC_OVERRIDE_1_REG 0x7860C0
 #define OEM_OVERRIDE_1_ENABLED_VALUE 0x1
 
@@ -101,9 +95,9 @@
 #endif
 
 static struct proc_dir_entry *oppo_secure_common_dir = NULL;
-static char* oppo_secure_common_dir_name = "oppo_secure_common";
+static char *oppo_secure_common_dir_name = "oplus_secure_common";
 static struct secure_data *secure_data_ptr = NULL;
-static char g_fuse_value[FUSE_VALUE_LEN] = UNKNOW_FUSE_VALUE ;
+static char g_fuse_value[FUSE_VALUE_LEN] = UNKNOW_FUSE_VALUE;
 
 secure_type_t get_secureType(void)
 {
@@ -113,8 +107,8 @@ secure_type_t get_secureType(void)
 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 670 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 710 \
 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 855 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6125 \
 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7150 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 \
-|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250
-/* sdm660, sdm845, sdm670, sdm710, sdm855 sm6125 sm7150 sm7250 sm8250 */
+|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7125
+/* sdm660, sdm845, sdm670, sdm710, sdm855 sm6125 sm7125 sm7150 sm7250 sm8250 */
 
         void __iomem *oem_config_base;
         uint32_t secure_oem_config1 = 0;
@@ -122,12 +116,12 @@ secure_type_t get_secureType(void)
         oem_config_base = ioremap(OEM_SEC_BOOT_REG, 4);
         secure_oem_config1 = __raw_readl(oem_config_base);
         iounmap(oem_config_base);
-        dev_err(secure_data_ptr->dev,"secure_oem_config1 0x%x\n", secure_oem_config1);
+        pr_err("secure_oem_config1 0x%x\n", secure_oem_config1);
 
         oem_config_base = ioremap(OEM_SEC_ENABLE_ANTIROLLBACK_REG, 4);
         secure_oem_config2 = __raw_readl(oem_config_base);
         iounmap(oem_config_base);
-        dev_err(secure_data_ptr->dev,"secure_oem_config2 0x%x\n", secure_oem_config2);
+        pr_err("secure_oem_config2 0x%x\n", secure_oem_config2);
 
         if (secure_oem_config1 == 0) {
                 secureType = SECURE_BOOT_OFF;
@@ -144,7 +138,7 @@ secure_type_t get_secureType(void)
         oem_config_base = ioremap(OEM_SEC_BOOT_REG, 4);
         secure_oem_config1 = __raw_readl(oem_config_base);
         iounmap(oem_config_base);
-        dev_err(secure_data_ptr->dev,"secure_oem_config1 0x%x\n", secure_oem_config1);
+        pr_err("secure_oem_config1 0x%x\n", secure_oem_config1);
 
         if (secure_oem_config1 == 0) {
                 secureType = SECURE_BOOT_OFF;
@@ -163,7 +157,7 @@ secure_type_t get_secureType(void)
         oem_config_base = ioremap(OEM_SEC_BOOT_REG, 4);
         secure_oem_config1 = __raw_readl(oem_config_base);
         iounmap(oem_config_base);
-        dev_err(secure_data_ptr->dev,"secure_oem_config1 0x%x\n", secure_oem_config1);
+        pr_err("secure_oem_config1 0x%x\n", secure_oem_config1);
 
         if (secure_oem_config1 == 0) {
                 secureType = SECURE_BOOT_OFF;
@@ -189,10 +183,10 @@ secure_type_t get_secureType(void)
 
 #elif  CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6779
 
-        if (g_hw_sbcen == 0) {
-                secureType = SECURE_BOOT_OFF;
-        } else {
+        if (strstr(saved_command_line, "androidboot.sbootstate=on")) {
                 secureType = SECURE_BOOT_ON;
+        } else {
+                secureType = SECURE_BOOT_OFF;
         }
 
 #elif  CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6885
@@ -268,7 +262,7 @@ static ssize_t secureSNBound_read_proc(struct file *file, char __user *buf,
         oem_config_base = ioremap(OEM_SEC_OVERRIDE_1_REG, 4);
         secure_override1_config = __raw_readl(oem_config_base);
         iounmap(oem_config_base);
-        dev_info(secure_data_ptr->dev,"secure_override1_config 0x%x\n", secure_override1_config);
+        dev_info(secure_data_ptr->dev, "secure_override1_config 0x%x\n", secure_override1_config);
 
         if (get_secureType() == SECURE_BOOT_ON_STAGE_2 && secure_override1_config != OEM_OVERRIDE_1_ENABLED_VALUE) {
                 secureSNBound_state = SECURE_DEVICE_SN_BOUND_OFF; /*secure stage2 devices not bind serial number*/
@@ -280,7 +274,7 @@ static ssize_t secureSNBound_read_proc(struct file *file, char __user *buf,
 #endif
 
 #if CONFIG_OPPO_BSP_SECCOM_PLATFORM == 855 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 6125 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7150 \
-|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250
+|| CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 8250 || CONFIG_OPPO_BSP_SECCOM_PLATFORM == 7125
         if (get_secureType() == SECURE_BOOT_ON_STAGE_2) {
                 secureSNBound_state = SECURE_DEVICE_SN_BOUND_OFF;
         }
@@ -313,22 +307,22 @@ static int secure_register_proc_fs(struct secure_data *secure_data)
 
         /*  make the dir /proc/oppo_secure_common  */
         oppo_secure_common_dir =  proc_mkdir(oppo_secure_common_dir_name, NULL);
-        if(!oppo_secure_common_dir) {
-                dev_err(secure_data->dev,"can't create oppo_secure_common_dir proc\n");
+        if (!oppo_secure_common_dir) {
+                dev_err(secure_data->dev, "can't create oppo_secure_common_dir proc\n");
                 return SECURE_ERROR_GENERAL;
         }
 
         /*  make the proc /proc/oppo_secure_common/secureType  */
         pentry = proc_create("secureType", 0664, oppo_secure_common_dir, &secureType_proc_fops);
-        if(!pentry) {
-                dev_err(secure_data->dev,"create secureType proc failed.\n");
+        if (!pentry) {
+                dev_err(secure_data->dev, "create secureType proc failed.\n");
                 return SECURE_ERROR_GENERAL;
         }
 
         /*  make the proc /proc/oppo_secure_common/secureSNBound  */
         pentry = proc_create("secureSNBound", 0444, oppo_secure_common_dir, &secureSNBound_proc_fops);
-        if(!pentry) {
-                dev_err(secure_data->dev,"create secureSNBound proc failed.\n");
+        if (!pentry) {
+                dev_err(secure_data->dev, "create secureSNBound proc failed.\n");
                 return SECURE_ERROR_GENERAL;
         }
 
@@ -341,9 +335,9 @@ static int oppo_secure_common_probe(struct platform_device *secure_dev)
         struct device *dev = &secure_dev->dev;
         struct secure_data *secure_data = NULL;
 
-        secure_data = devm_kzalloc(dev,sizeof(struct secure_data), GFP_KERNEL);
+        secure_data = devm_kzalloc(dev, sizeof(struct secure_data), GFP_KERNEL);
         if (secure_data == NULL) {
-                dev_err(dev,"secure_data kzalloc failed\n");
+                dev_err(dev, "secure_data kzalloc failed\n");
                 ret = -ENOMEM;
                 goto exit;
         }
@@ -363,7 +357,7 @@ exit:
                 remove_proc_entry(oppo_secure_common_dir_name, NULL);
         }
 
-        dev_err(dev,"secure_data probe failed ret = %d\n",ret);
+        dev_err(dev, "secure_data probe failed ret = %d\n", ret);
         if (secure_data) {
                 devm_kfree(dev, secure_data);
         }
